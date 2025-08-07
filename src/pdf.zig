@@ -26,10 +26,9 @@ pub const PdfObject = struct {
         return PdfObject{ .num = num, .type = objType, .dict = dict, .stream = "" };
     }
 
-    pub fn print(self: PdfObject) !void {
-        const stdout_file = std.io.getStdOut().writer();
-        var bw = std.io.bufferedWriter(stdout_file);
-        const out = bw.writer();
+    pub fn print(self: PdfObject) !PdfString {
+        var result = std.ArrayList(u8).init(allocator);
+        var out = result.writer();
         try out.print("{} 0 obj\n", .{self.num});
         try out.print("<<\n", .{});
         var it = self.dict.iterator();
@@ -37,7 +36,7 @@ pub const PdfObject = struct {
             try out.print("/{s} /{s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
         }
         try out.print(">>\n", .{});
-        try bw.flush();
+        return result.items;
     }
 };
 
@@ -49,7 +48,7 @@ pub const PdfDocument = struct {
 
     /// create a new empty pdf document
     pub fn new() !PdfDocument {
-        // TODO init catalog and pages
+        // TODO init catalog
         var objs = std.ArrayList(PdfObject).init(allocator);
         const pageTreeRoot = try PdfObject.new(1, PdfObjType.Pages);
         try objs.append(pageTreeRoot);
@@ -57,19 +56,19 @@ pub const PdfDocument = struct {
     }
 
     /// print the pdf document represented by this object
-    pub fn print(self: PdfDocument) !void {
-        const stdout_file = std.io.getStdOut().writer();
-        var bw = std.io.bufferedWriter(stdout_file);
-        const out = bw.writer();
+    pub fn print(self: PdfDocument) !PdfString {
+        var result = std.ArrayList(u8).init(allocator);
+        var out = result.writer();
         // header
         try out.print("%PDF-1.1\n%âãÏÓ\n", .{});
-        try bw.flush();
         // objects
         for (self.objs.items) |obj| {
             //try out.print("{} 0 obj\n", .{obj.num});
-            try obj.print();
+            const objStr = try obj.print();
+            try out.print("{s}", .{objStr});
         }
         // TODO xref table
         // TODO trailer
+        return result.items;
     }
 };
