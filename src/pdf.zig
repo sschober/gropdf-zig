@@ -36,7 +36,7 @@ pub const PdfObject = struct {
     pub fn print(self: PdfObject) !PdfString {
         var result = std.ArrayList(u8).init(allocator);
         var out = result.writer();
-        try out.print("{!s}\n", .{self.ref()});
+        try out.print("{d} 0 obj\n", .{self.num});
         try out.print("<<\n", .{});
         if (self.type == PdfObjType.Stream) {
             try out.print("/Length {d}\n", .{self.stream.?.len});
@@ -116,10 +116,11 @@ pub const PdfDocument = struct {
         return PdfDocument{ .objs = objs, .pages = pages, .catalog = catalog };
     }
 
-    pub fn addPage(self: *PdfDocument) !PdfPage {
+    pub fn addPage(self: *PdfDocument, text: PdfString) !PdfPage {
         const objNum = self.objs.items.len;
-        const page = try PdfPage.new(self.pages.pdfObj, objNum + 1);
+        var page = try PdfPage.new(self.pages.pdfObj, objNum + 1);
         try self.objs.append(page.pdfObj);
+        page.contents.stream = text;
         try self.objs.append(page.contents);
         try self.objs.append(page.resources);
         try self.pages.addPage(page);
