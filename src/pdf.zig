@@ -38,11 +38,18 @@ pub const PdfObject = struct {
         var out = result.writer();
         try out.print("{!s}\n", .{self.ref()});
         try out.print("<<\n", .{});
-        var it = self.dict.iterator();
-        while (it.next()) |entry| {
-            try out.print("/{s} {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+        if (self.type == PdfObjType.Stream) {
+            try out.print("/Length {d}\n", .{self.stream.?.len});
+            try out.print(">>\n", .{});
+            try out.print("{s}", .{self.stream.?});
+        } else {
+            var it = self.dict.iterator();
+            while (it.next()) |entry| {
+                try out.print("/{s} {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+            }
+            try out.print(">>\n", .{});
         }
-        try out.print(">>\nendobj\n", .{});
+        try out.print("endobj\n", .{});
         return result.items;
     }
 };
@@ -56,8 +63,10 @@ pub const PdfPage = struct {
         var obj = try PdfObject.new(num, PdfObjType.Page);
         try obj.dict.put("Parent", try parent.ref());
         var res = try PdfObject.new(num + 1, PdfObjType.Font);
+        try res.dict.put("Font", "\n<<\n/F0\n<<\n/BaseFont /Times\n/Subtype /Type1\n/Type /Font \n>>\n>>");
         try obj.dict.put("Resources", try res.ref());
         var contents = try PdfObject.new(num + 2, PdfObjType.Stream);
+        try obj.dict.put("MediaBox", "[0 0 612 792]");
         try obj.dict.put("Contents", try contents.ref());
         return PdfPage{ .pdfObj = obj, .resources = res, .contents = contents };
     }
@@ -88,21 +97,23 @@ pub const PdfPages = struct {
     }
 };
 
+const PDF_1_1_HEADER = "%PDF-1.1\n%âãÏÓ\n";
+
 /// structure of a pdf file
 pub const PdfDocument = struct {
     objs: std.ArrayList(PdfObject),
     pages: PdfPages,
+    catalog: PdfObject,
 
     /// create a new empty pdf document
     pub fn new() !PdfDocument {
-        // TODO init catalog
         var objs = std.ArrayList(PdfObject).init(allocator);
         const pages = try PdfPages.new();
         try objs.append(pages.pdfObj);
         var catalog = try PdfObject.new(2, PdfObjType.Catalog);
         try catalog.dict.put("Pages", try pages.pdfObj.ref());
         try objs.append(catalog);
-        return PdfDocument{ .objs = objs, .pages = pages };
+        return PdfDocument{ .objs = objs, .pages = pages, .catalog = catalog };
     }
 
     pub fn addPage(self: *PdfDocument) !PdfPage {
@@ -117,17 +128,30 @@ pub const PdfDocument = struct {
 
     /// print the pdf document represented by this object
     pub fn print(self: PdfDocument) !PdfString {
+        var byteCount: usize = 0;
+        var objIndices = std.ArrayList(usize).init(allocator);
         var result = std.ArrayList(u8).init(allocator);
         var out = result.writer();
         // header
-        try out.print("%PDF-1.1\n%âãÏÓ\n", .{});
+        try out.print("{s}", .{PDF_1_1_HEADER});
+        byteCount += PDF_1_1_HEADER.len;
         // objects
         for (self.objs.items) |obj| {
+            try objIndices.append(byteCount);
             const objStr = try obj.print();
             try out.print("{s}", .{objStr});
+            byteCount += objStr.len;
         }
-        // TODO xref table
-        // TODO trailer
+        const startXRef = byteCount;
+        // xref table
+        try out.print("xref\n0 {d}\n0000000000 65535 f\n", .{self.objs.items.len + 1});
+        for (objIndices.items) |idx| {
+            try out.print("{d:0>10} 00000 n\n", .{idx});
+        }
+        // trailer
+        try out.print("trailer\n", .{});
+        try out.print("<<\n/Root {s}\n/Size {d}\n>>\n", .{ try self.catalog.ref(), self.objs.items.len + 1 });
+        try out.print("startxref\n{d}\n", .{startXRef});
         return result.items;
     }
 };
