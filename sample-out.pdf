@@ -1,5 +1,5 @@
 %PDF-1.1
-%âãÏÓ
+%abc
 1 0 obj
 <<
 /Kids [ 3 0 R ]
@@ -26,11 +26,14 @@ endobj
 <<
 /Length 65
 >>
+stream
 1. 0. 0. 1. 50. 700. cm
 BT
   /F0 36. Tf
   (Hello, World!) Tj 
 ET
+
+endstream
 endobj
 4 0 obj
 <<
@@ -39,7 +42,7 @@ endobj
 <<
 /F0
 <<
-/BaseFont /Times
+/BaseFont /Times-Roman
 /Subtype /Type1
 /Type /Font 
 >>
@@ -49,15 +52,15 @@ endobj
 xref
 0 6
 0000000000 65535 f
-0000000019 00000 n
-0000000078 00000 n
-0000000127 00000 n
-0000000231 00000 n
-0000000328 00000 n
+0000000015 00000 n
+0000000074 00000 n
+0000000123 00000 n
+0000000227 00000 n
+0000000342 00000 n
 trailer
 <<
 /Root 2 0 R
 /Size 6
 >>
 startxref
-430
+450
