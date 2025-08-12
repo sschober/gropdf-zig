@@ -41,7 +41,9 @@ pub const PdfObject = struct {
         if (self.type == PdfObjType.Stream) {
             try out.print("/Length {d}\n", .{self.stream.?.len});
             try out.print(">>\n", .{});
+            try out.print("stream\n", .{});
             try out.print("{s}", .{self.stream.?});
+            try out.print("\nendstream\n", .{});
         } else {
             var it = self.dict.iterator();
             while (it.next()) |entry| {
@@ -63,7 +65,7 @@ pub const PdfPage = struct {
         var obj = try PdfObject.new(num, PdfObjType.Page);
         try obj.dict.put("Parent", try parent.ref());
         var res = try PdfObject.new(num + 1, PdfObjType.Font);
-        try res.dict.put("Font", "\n<<\n/F0\n<<\n/BaseFont /Times\n/Subtype /Type1\n/Type /Font \n>>\n>>");
+        try res.dict.put("Font", "\n<<\n/F0\n<<\n/BaseFont /Times-Roman\n/Subtype /Type1\n/Type /Font \n>>\n>>");
         try obj.dict.put("Resources", try res.ref());
         var contents = try PdfObject.new(num + 2, PdfObjType.Stream);
         try obj.dict.put("MediaBox", "[0 0 612 792]");
@@ -97,7 +99,8 @@ pub const PdfPages = struct {
     }
 };
 
-const PDF_1_1_HEADER = "%PDF-1.1\n%âãÏÓ\n";
+//const PDF_1_1_HEADER = "%PDF-1.1\n%âãÏÓ\n";
+const PDF_1_1_HEADER = "%PDF-1.1\n%abc\n";
 
 /// structure of a pdf file
 pub const PdfDocument = struct {
@@ -135,7 +138,7 @@ pub const PdfDocument = struct {
         var out = result.writer();
         // header
         try out.print("{s}", .{PDF_1_1_HEADER});
-        byteCount += PDF_1_1_HEADER.len;
+        byteCount += PDF_1_1_HEADER.len + 1;
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
