@@ -130,32 +130,29 @@ pub const PdfDocument = struct {
         return page;
     }
 
-    /// print the pdf document represented by this object
-    pub fn print(self: PdfDocument) !PdfString {
+    /// print the pdf document represented by this object to the given writer
+    pub fn print(self: PdfDocument, writer: anytype) !void {
         var byteCount: usize = 0;
         var objIndices = std.ArrayList(usize).init(allocator);
-        var result = std.ArrayList(u8).init(allocator);
-        var out = result.writer();
         // header
-        try out.print("{s}", .{PDF_1_1_HEADER});
+        try writer.print("{s}", .{PDF_1_1_HEADER});
         byteCount += PDF_1_1_HEADER.len + 1;
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
             const objStr = try obj.print();
-            try out.print("{s}", .{objStr});
+            try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }
         const startXRef = byteCount;
         // xref table
-        try out.print("xref\n0 {d}\n0000000000 65535 f\n", .{self.objs.items.len + 1});
+        try writer.print("xref\n0 {d}\n0000000000 65535 f\n", .{self.objs.items.len + 1});
         for (objIndices.items) |idx| {
-            try out.print("{d:0>10} 00000 n\n", .{idx});
+            try writer.print("{d:0>10} 00000 n\n", .{idx});
         }
         // trailer
-        try out.print("trailer\n", .{});
-        try out.print("<<\n/Root {s}\n/Size {d}\n>>\n", .{ try self.catalog.ref(), self.objs.items.len + 1 });
-        try out.print("startxref\n{d}\n", .{startXRef});
-        return result.items;
+        try writer.print("trailer\n", .{});
+        try writer.print("<<\n/Root {s}\n/Size {d}\n>>\n", .{ try self.catalog.ref(), self.objs.items.len + 1 });
+        try writer.print("startxref\n{d}\n", .{startXRef});
     }
 };
