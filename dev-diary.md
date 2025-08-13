@@ -33,6 +33,28 @@ PDF file copied over from a book called "PDF Explained" by O'Reilly. That book
 served as a starting point, but I soon learned, that the Adobe "PDF Reference 1.7"
 (see [here](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)).
 
+### Implementation
+
+My first shot at implementing this with `zig` was basically creating a set
+of `structs` - probably as I would have done in `java` or `c++`: `PdfObject` which has
+a `PdfType` and a `PdfDict`, both type aliases for an `enum` in the first case
+and what zig thinks of for a string `[]const u8`.
+
+Now, this is interesting: I chose to store the object type _in_ the object itself,
+something, I never would have done in `java` or `c++`. I did this, because I had
+to integrate these `PdfObject`s into each other more concrete object:
+
+```
+const PdfPage = struct {
+  pdfObject: PdfObject,
+  ... 
+} 
+```
+
+That is because zig has no notion of inheritance and or struct embedding.
+
+### Challenges
+
 The first problem my current implementation has, is that the output stream
 is chosen in the pdf implementation. So, the first challgenge becomes, factoring
 that out. That was easily done, by letting main choose the writer and change
