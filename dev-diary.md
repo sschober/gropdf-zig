@@ -35,4 +35,34 @@ served as a starting point, but I soon learned, that the Adobe "PDF Reference 1.
 
 The first problem my current implementation has, is that the output stream
 is chosen in the pdf implementation. So, the first challgenge becomes, factoring
-that out.
+that out. That was easily done, by letting main choose the writer and change
+the interface of `PdfDocument.print` to accept a that `writer: anytype`. This
+is what `zig` thinks of as templates.
+
+The next challgenge might be the object model and hierarchy, or putting more
+text into the implementation. I've looked at a minimal grout output:
+
+```
+$ groff -Tascii -Z samples/simple/minimal.groff
+x T ascii
+x res 240 24 40
+x init
+p1
+x font 1 R
+f1
+s10
+V80
+H0
+md
+DFd
+tThis
+wh24
+tfile
+wh24
+tcontains
+...
+```
+So, it should be fairly easy to write a reading loop interpreting this:
+Text, or words are being introduced by `t` and interword spaces with
+`wh`, in the first go I could ignore all the rest and I would have a
+very simple pdf device!
