@@ -64,7 +64,7 @@ pub const Font = struct {
         return res;
     }
     pub fn write(self: Font, writer: anytype) !void {
-        try writer.print("<</Type Font\n/Font\n<</F{d}\n<<\n<<\n{s}\n>>\n>>\n>>\n", .{ self.fontNum, self.fontDef });
+        try writer.print("<<\n/Type /Font\n/Font\n<<\n/F{d}\n<<\n{s}\n>>\n>>\n>>\n", .{ self.fontNum, self.fontDef });
     }
     pub fn pdfObj(self: *Font) !*Object {
         const res = try allocator.create(Object);
@@ -181,8 +181,9 @@ pub const Document = struct {
             try objIndices.append(byteCount);
             var objBytes = std.ArrayList(u8).init(allocator);
             try obj.write(objBytes.writer());
-            try writer.print("{d} 0 obj\n{s}endobj\n", .{ obj.objNum(), objBytes.items });
-            byteCount += objBytes.items.len;
+            const objStr = try std.fmt.allocPrint(allocator, "{d} 0 obj\n{s}endobj\n", .{ obj.objNum(), objBytes.items });
+            try writer.print("{s}", .{objStr});
+            byteCount += objStr.len;
         }
 
         // xref table
