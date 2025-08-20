@@ -26,8 +26,8 @@ pub const StandardFonts = enum {
     Zapf_Dingbats,
     pub fn string(self: StandardFonts) String {
         switch (self) {
-            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1\n/Type /Font",
-            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1\n/Type /Font",
+            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1",
+            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1",
             else => return "",
         }
     }
@@ -50,9 +50,9 @@ pub const Pages = struct {
         try writer.print("]\n/Count {d}\n>>\n", .{self.kids.items.len});
     }
 
-    fn addPage(self: *Pages, n: usize, c: usize, f: usize) !*Page {
+    fn addPage(self: *Pages, n: usize, c: usize) !*Page {
         const res = try allocator.create(Page);
-        res.* = Page.init(n, self.objNum, c, f);
+        res.* = Page.init(n, self.objNum, c);
         try self.kids.append(res);
         return res;
     }
@@ -92,7 +92,13 @@ pub const Font = struct {
         return res;
     }
     pub fn write(self: Font, writer: anytype) !void {
-        try writer.print("<<\n/Type /Font\n/Font\n<<\n/F{d}\n<<\n{s}\n>>\n>>\n>>\n", .{ self.fontNum, self.fontDef });
+        try writer.print(
+            \\<<
+            \\/Type /Font
+            \\{s}
+            \\>>
+            \\
+        , .{self.fontDef});
     }
     pub fn pdfObj(self: *Font) !*Object {
         const res = try allocator.create(Object);
@@ -106,12 +112,21 @@ pub const Page = struct {
     parentNum: usize,
     contentsNum: usize,
     /// fonts are referenced as resources
-    resourceNum: usize,
-    pub fn init(n: usize, p: usize, c: usize, r: usize) Page {
-        return Page{ .objNum = n, .parentNum = p, .contentsNum = c, .resourceNum = r };
+    resources: std.ArrayList(usize),
+    pub fn init(n: usize, p: usize, c: usize) Page {
+        return Page{ .objNum = n, .parentNum = p, .contentsNum = c, .resources = std.ArrayList(usize).init(allocator) };
+    }
+    pub fn resString(self: Page) !String {
+        var res = std.ArrayList(u8).init(allocator);
+        try res.writer().print("<<\n", .{});
+        for (self.resources.items, 0..) |item, i| {
+            try res.writer().print("/F{d} {d} 0 R\n", .{ i, item });
+        }
+        try res.writer().print(">>", .{});
+        return res.items;
     }
     pub fn write(self: Page, writer: anytype) !void {
-        try writer.print("<<\n/Type /Page\n/Parent {d} 0 R\n/Contents {d} 0 R\n/MediaBox [0 0 612 792]\n/Resources {d} 0 R\n>>\n", .{ self.parentNum, self.contentsNum, self.resourceNum });
+        try writer.print("<<\n/Type /Page\n/Parent {d} 0 R\n/Contents {d} 0 R\n/MediaBox [0 0 612 792]\n/Resources\n<<\n/Font {s}\n>>\n>>\n", .{ self.parentNum, self.contentsNum, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try allocator.create(Object);
@@ -189,10 +204,10 @@ pub const Document = struct {
         return objIdx;
     }
 
-    pub fn addPage(self: *Document, f: usize, s: String) !*Page {
+    pub fn addPage(self: *Document, s: String) !*Page {
         const objIdx = self.objs.items.len + 1;
         const stream = try Stream.init(objIdx + 1, s);
-        const page = try self.pages.addPage(objIdx, stream.objNum, f);
+        const page = try self.pages.addPage(objIdx, stream.objNum);
         try self.addObj(try page.pdfObj());
         try self.addObj(try stream.pdfObj());
         return page;
