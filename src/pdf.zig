@@ -1,158 +1,231 @@
 //! PDF object model and functions
+//!
+//! implements PDF version 1.1 as defined in [Adobe PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)
+//! (pdfref17)
 const std = @import("std");
-
 var gpa = std.heap.DebugAllocator(.{}){};
 const allocator = gpa.allocator();
-/// type alias for strings
-const PdfString = []const u8;
 
-/// new type alias for our object dictionaries
-const PdfMap = std.StringHashMap(PdfString);
+const String = []const u8;
 
-const PdfObjList = std.ArrayList(PdfObject);
-
-/// all known pdf object types
-pub const PdfObjType = enum { Pages, Page, Catalog, Font, Stream };
-
-/// basic building block of a pdf document
-pub const PdfObject = struct {
-    num: usize,
-    type: PdfObjType,
-    dict: PdfMap,
-    stream: ?PdfString,
-
-    pub fn new(num: usize, objType: PdfObjType) !PdfObject {
-        var dict =
-            PdfMap.init(allocator);
-        const typeString = try std.fmt.allocPrint(allocator, "/{s}", .{@tagName(objType)});
-        try dict.put("Type", typeString);
-        return PdfObject{ .num = num, .type = objType, .dict = dict, .stream = "" };
-    }
-
-    pub fn ref(self: PdfObject) !PdfString {
-        return try std.fmt.allocPrint(allocator, "{d} 0 R", .{self.num});
-    }
-
-    pub fn print(self: PdfObject) !PdfString {
-        var result = std.ArrayList(u8).init(allocator);
-        var out = result.writer();
-        try out.print("{d} 0 obj\n", .{self.num});
-        try out.print("<<\n", .{});
-        if (self.type == PdfObjType.Stream) {
-            try out.print("/Length {d}\n", .{self.stream.?.len});
-            try out.print(">>\n", .{});
-            try out.print("stream\n", .{});
-            try out.print("{s}", .{self.stream.?});
-            try out.print("\nendstream\n", .{});
-        } else {
-            var it = self.dict.iterator();
-            while (it.next()) |entry| {
-                try out.print("/{s} {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-            }
-            try out.print(">>\n", .{});
+/// Standard font name definitions as defined by adobe in (pdfref17)
+pub const StandardFonts = enum {
+    Times_Roman,
+    Times_Bold,
+    Times_Italic,
+    Times_Bold_Italic,
+    Helvetica,
+    Helvetica_Bold,
+    Helvetica_Oblique,
+    Helvetica_Bold_Oblique,
+    Courier,
+    Courier_Bold,
+    Courier_Olbique,
+    Courier_Bold_Oblique,
+    Symbol,
+    Zapf_Dingbats,
+    pub fn string(self: StandardFonts) String {
+        switch (self) {
+            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1\n/Type /Font",
+            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1\n/Type /Font",
+            else => return "",
         }
-        try out.print("endobj\n", .{});
-        return result.items;
     }
 };
+pub const Pages = struct {
+    objNum: usize,
+    kids: std.ArrayList(*Page),
 
-pub const PdfPage = struct {
-    pdfObj: PdfObject,
-    resources: PdfObject,
-    contents: PdfObject,
-
-    pub fn new(parent: PdfObject, num: usize) !PdfPage {
-        var obj = try PdfObject.new(num, PdfObjType.Page);
-        try obj.dict.put("Parent", try parent.ref());
-        var res = try PdfObject.new(num + 1, PdfObjType.Font);
-        try res.dict.put("Font", "\n<<\n/F0\n<<\n/BaseFont /Times-Roman\n/Subtype /Type1\n/Type /Font \n>>\n>>");
-        try obj.dict.put("Resources", try res.ref());
-        var contents = try PdfObject.new(num + 2, PdfObjType.Stream);
-        try obj.dict.put("MediaBox", "[0 0 612 792]");
-        try obj.dict.put("Contents", try contents.ref());
-        return PdfPage{ .pdfObj = obj, .resources = res, .contents = contents };
-    }
-};
-
-pub const PdfPages = struct {
-    // prefer encapsulation over inheritance... poor man's OO
-    pdfObj: PdfObject,
-    kids: PdfObjList,
-
-    pub fn new() !PdfPages {
-        var obj = try PdfObject.new(1, PdfObjType.Pages);
-        try obj.dict.put("Kids", "[]");
-        try obj.dict.put("Count", "0");
-        return PdfPages{ .pdfObj = obj, .kids = PdfObjList.init(allocator) };
+    pub fn init(n: usize) !*Pages {
+        const result = try allocator.create(Pages);
+        result.* = Pages{ .objNum = n, .kids = std.ArrayList(*Page).init(allocator) };
+        return result;
     }
 
-    pub fn addPage(self: *PdfPages, page: PdfPage) !void {
-        try self.kids.append(page.pdfObj);
-        var kidsString = std.ArrayList(u8).init(allocator);
-        try kidsString.writer().print("[ ", .{});
+    pub fn write(self: Pages, writer: anytype) !void {
+        try writer.print("<<\n/Type /Pages\n/Kids [", .{});
         for (self.kids.items) |kid| {
-            try kidsString.writer().print("{s} ", .{try kid.ref()});
+            try writer.print("{d} 0 R", .{kid.objNum});
         }
-        try kidsString.writer().print("]", .{});
-        try self.pdfObj.dict.put("Kids", kidsString.items);
-        try self.pdfObj.dict.put("Count", try std.fmt.allocPrint(allocator, "{d}", .{self.kids.items.len}));
+        try writer.print("]\n/Count {d}\n>>\n", .{self.kids.items.len});
+    }
+
+    fn addPage(self: *Pages, n: usize, c: usize, f: usize) !*Page {
+        const res = try allocator.create(Page);
+        res.* = Page.init(n, self.objNum, c, f);
+        try self.kids.append(res);
+        return res;
+    }
+
+    pub fn pdfObj(self: *Pages) !*Object {
+        const res = try allocator.create(Object);
+        res.* = Object{ .pages = self };
+        return res;
     }
 };
 
-//const PDF_1_1_HEADER = "%PDF-1.1\n%âãÏÓ\n";
+pub const Stream = struct {
+    objNum: usize,
+    stream: String,
+    pub fn init(n: usize, s: String) !*Stream {
+        const res = try allocator.create(Stream);
+        res.* = Stream{ .objNum = n, .stream = s };
+        return res;
+    }
+    pub fn write(self: Stream, writer: anytype) !void {
+        try writer.print("<<\n/Length {d}\n>>\nstream\n{s}\nendstream\n", .{ self.stream.len, self.stream });
+    }
+    pub fn pdfObj(self: *Stream) !*Object {
+        const res = try allocator.create(Object);
+        res.* = Object{ .stream = self };
+        return res;
+    }
+};
+
+pub const Font = struct {
+    objNum: usize,
+    fontNum: usize,
+    fontDef: String,
+    pub fn init(n: usize, l: usize, f: String) !*Font {
+        const res = try allocator.create(Font);
+        res.* = Font{ .objNum = n, .fontNum = l, .fontDef = f };
+        return res;
+    }
+    pub fn write(self: Font, writer: anytype) !void {
+        try writer.print("<<\n/Type /Font\n/Font\n<<\n/F{d}\n<<\n{s}\n>>\n>>\n>>\n", .{ self.fontNum, self.fontDef });
+    }
+    pub fn pdfObj(self: *Font) !*Object {
+        const res = try allocator.create(Object);
+        res.* = Object{ .font = self };
+        return res;
+    }
+};
+
+pub const Page = struct {
+    objNum: usize,
+    parentNum: usize,
+    contentsNum: usize,
+    /// fonts are referenced as resources
+    resourceNum: usize,
+    pub fn init(n: usize, p: usize, c: usize, r: usize) Page {
+        return Page{ .objNum = n, .parentNum = p, .contentsNum = c, .resourceNum = r };
+    }
+    pub fn write(self: Page, writer: anytype) !void {
+        try writer.print("<<\n/Type /Page\n/Parent {d} 0 R\n/Contents {d} 0 R\n/MediaBox [0 0 612 792]\n/Resources {d} 0 R\n>>\n", .{ self.parentNum, self.contentsNum, self.resourceNum });
+    }
+    pub fn pdfObj(self: *Page) !*Object {
+        const res = try allocator.create(Object);
+        res.* = Object{ .page = self };
+        return res;
+    }
+};
+
+const Catalog = struct {
+    objNum: usize,
+    pages: String,
+    pub fn init(n: usize) !*Catalog {
+        const res = try allocator.create(Catalog);
+        res.* = Catalog{ .objNum = n, .pages = "1 0 R" };
+        return res;
+    }
+    fn write(self: Catalog, writer: anytype) !void {
+        try writer.print("<<\n/Type /Catalog\n/Pages {s}\n>>\n", .{self.pages});
+    }
+    pub fn pdfObj(self: *Catalog) !*Object {
+        const res = try allocator.create(Object);
+        res.* = Object{ .catalog = self };
+        return res;
+    }
+};
+
+/// interface of all pdf objects
+pub const Object = union(enum) {
+    pages: *Pages,
+    page: *Page,
+    catalog: *Catalog,
+    font: *Font,
+    stream: *Stream,
+
+    pub fn write(self: Object, writer: anytype) !void {
+        switch (self) {
+            inline else => |impl| return impl.write(writer),
+        }
+    }
+    pub fn objNum(self: Object) usize {
+        switch (self) {
+            inline else => |impl| return impl.objNum,
+        }
+    }
+};
+
 const PDF_1_1_HEADER = "%PDF-1.1\n%abc\n";
 
-/// structure of a pdf file
-pub const PdfDocument = struct {
-    objs: std.ArrayList(PdfObject),
-    pages: PdfPages,
-    catalog: PdfObject,
+pub const Document = struct {
+    objs: std.ArrayList(*Object),
+    fonts: std.ArrayList(*Font),
+    pages: *Pages,
+    catalog: *Catalog,
 
-    /// create a new empty pdf document
-    pub fn new() !PdfDocument {
-        var objs = std.ArrayList(PdfObject).init(allocator);
-        const pages = try PdfPages.new();
-        try objs.append(pages.pdfObj);
-        var catalog = try PdfObject.new(2, PdfObjType.Catalog);
-        try catalog.dict.put("Pages", try pages.pdfObj.ref());
-        try objs.append(catalog);
-        return PdfDocument{ .objs = objs, .pages = pages, .catalog = catalog };
+    fn addObj(self: *Document, obj: *Object) !void {
+        try self.objs.append(obj);
     }
 
-    pub fn addPage(self: *PdfDocument, text: PdfString) !PdfPage {
-        const objNum = self.objs.items.len;
-        var page = try PdfPage.new(self.pages.pdfObj, objNum + 1);
-        try self.objs.append(page.pdfObj);
-        page.contents.stream = text;
-        try self.objs.append(page.contents);
-        try self.objs.append(page.resources);
-        try self.pages.addPage(page);
+    pub fn init() !Document {
+        var self = Document{ .objs = std.ArrayList(*Object).init(allocator), .pages = try Pages.init(1), .catalog = try Catalog.init(2), .fonts = std.ArrayList(*Font).init((allocator)) };
+        try self.addObj(try self.pages.pdfObj());
+        try self.addObj(try self.catalog.pdfObj());
+        return self;
+    }
+    /// add an adobe defined standard font to the document
+    /// returns the font number
+    pub fn addStandardFont(self: *Document, stdFnt: StandardFonts) !usize {
+        return self.addFont(stdFnt.string());
+    }
+
+    pub fn addFont(self: *Document, f: String) !usize {
+        const objIdx = self.objs.items.len + 1;
+        const font = try Font.init(objIdx, self.fonts.items.len, f);
+        try self.addObj(try font.pdfObj());
+        return objIdx;
+    }
+
+    pub fn addPage(self: *Document, f: usize, s: String) !*Page {
+        const objIdx = self.objs.items.len + 1;
+        const stream = try Stream.init(objIdx + 1, s);
+        const page = try self.pages.addPage(objIdx, stream.objNum, f);
+        try self.addObj(try page.pdfObj());
+        try self.addObj(try stream.pdfObj());
         return page;
     }
 
-    /// print the pdf document represented by this object to the given writer
-    pub fn print(self: PdfDocument, writer: anytype) !void {
+    pub fn print(self: Document, writer: anytype) !void {
         var byteCount: usize = 0;
         var objIndices = std.ArrayList(usize).init(allocator);
+
         // header
         try writer.print("{s}", .{PDF_1_1_HEADER});
         byteCount += PDF_1_1_HEADER.len + 1;
+
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
-            const objStr = try obj.print();
+            var objBytes = std.ArrayList(u8).init(allocator);
+            try obj.write(objBytes.writer());
+            const objStr = try std.fmt.allocPrint(allocator, "{d} 0 obj\n{s}endobj\n", .{ obj.objNum(), objBytes.items });
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }
-        const startXRef = byteCount;
+
         // xref table
+        const startXRef = byteCount;
         try writer.print("xref\n0 {d}\n0000000000 65535 f\n", .{self.objs.items.len + 1});
         for (objIndices.items) |idx| {
             try writer.print("{d:0>10} 00000 n\n", .{idx});
         }
+
         // trailer
         try writer.print("trailer\n", .{});
-        try writer.print("<<\n/Root {s}\n/Size {d}\n>>\n", .{ try self.catalog.ref(), self.objs.items.len + 1 });
+        try writer.print("<<\n/Root {d} 0 R\n/Size {d}\n>>\n", .{ self.catalog.objNum, self.objs.items.len + 1 });
         try writer.print("startxref\n{d}\n", .{startXRef});
     }
 };
