@@ -43,11 +43,20 @@ pub const Pages = struct {
     }
 
     pub fn write(self: Pages, writer: anytype) !void {
-        try writer.print("<<\n/Type /Pages\n/Kids [", .{});
+        try writer.print(
+            \\<<
+            \\/Type /Pages
+            \\/Kids [
+        , .{});
         for (self.kids.items) |kid| {
             try writer.print("{d} 0 R", .{kid.objNum});
         }
-        try writer.print("]\n/Count {d}\n>>\n", .{self.kids.items.len});
+        try writer.print(
+            \\]
+            \\/Count {d}
+            \\>>
+            \\
+        , .{self.kids.items.len});
     }
 
     fn addPage(self: *Pages, n: usize, c: usize) !*Page {
@@ -73,7 +82,15 @@ pub const Stream = struct {
         return res;
     }
     pub fn write(self: Stream, writer: anytype) !void {
-        try writer.print("<<\n/Length {d}\n>>\nstream\n{s}\nendstream\n", .{ self.stream.len, self.stream });
+        try writer.print(
+            \\<<
+            \\/Length {d}
+            \\>>
+            \\stream
+            \\{s}
+            \\endstream
+            \\
+        , .{ self.stream.len, self.stream });
     }
     pub fn pdfObj(self: *Stream) !*Object {
         const res = try allocator.create(Object);
@@ -126,7 +143,19 @@ pub const Page = struct {
         return res.items;
     }
     pub fn write(self: Page, writer: anytype) !void {
-        try writer.print("<<\n/Type /Page\n/Parent {d} 0 R\n/Contents {d} 0 R\n/MediaBox [0 0 612 792]\n/Resources\n<<\n/Font {s}\n>>\n>>\n", .{ self.parentNum, self.contentsNum, try self.resString() });
+        try writer.print(
+            \\<<
+            \\/Type /Page
+            \\/Parent {d} 0 R
+            \\/Contents {d} 0 R
+            \\/MediaBox [0 0 612 792]
+            \\/Resources
+            \\<<
+            \\/Font {s}
+            \\>>
+            \\>>
+            \\
+        , .{ self.parentNum, self.contentsNum, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try allocator.create(Object);
@@ -144,7 +173,13 @@ const Catalog = struct {
         return res;
     }
     fn write(self: Catalog, writer: anytype) !void {
-        try writer.print("<<\n/Type /Catalog\n/Pages {s}\n>>\n", .{self.pages});
+        try writer.print(
+            \\<<
+            \\/Type /Catalog
+            \\/Pages {s}
+            \\>>
+            \\
+        , .{self.pages});
     }
     pub fn pdfObj(self: *Catalog) !*Object {
         const res = try allocator.create(Object);
@@ -173,7 +208,11 @@ pub const Object = union(enum) {
     }
 };
 
-const PDF_1_1_HEADER = "%PDF-1.1\n%abc\n";
+const PDF_1_1_HEADER =
+    \\%PDF-1.1
+    \\%abc
+    \\
+;
 
 pub const Document = struct {
     objs: std.ArrayList(*Object),
@@ -226,21 +265,37 @@ pub const Document = struct {
             try objIndices.append(byteCount);
             var objBytes = std.ArrayList(u8).init(allocator);
             try obj.write(objBytes.writer());
-            const objStr = try std.fmt.allocPrint(allocator, "{d} 0 obj\n{s}endobj\n", .{ obj.objNum(), objBytes.items });
+            const objStr = try std.fmt.allocPrint(allocator,
+                \\{d} 0 obj
+                \\{s}endobj
+                \\
+            , .{ obj.objNum(), objBytes.items });
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }
 
         // xref table
         const startXRef = byteCount;
-        try writer.print("xref\n0 {d}\n0000000000 65535 f\n", .{self.objs.items.len + 1});
+        try writer.print(
+            \\xref
+            \\0 {d}
+            \\0000000000 65535 f
+            \\
+        , .{self.objs.items.len + 1});
         for (objIndices.items) |idx| {
             try writer.print("{d:0>10} 00000 n\n", .{idx});
         }
 
         // trailer
-        try writer.print("trailer\n", .{});
-        try writer.print("<<\n/Root {d} 0 R\n/Size {d}\n>>\n", .{ self.catalog.objNum, self.objs.items.len + 1 });
-        try writer.print("startxref\n{d}\n", .{startXRef});
+        try writer.print(
+            \\trailer
+            \\<<
+            \\/Root {d} 0 R
+            \\/Size {d}
+            \\>>
+            \\startxref
+            \\{d}
+            \\
+        , .{ self.catalog.objNum, self.objs.items.len + 1, startXRef });
     }
 };
