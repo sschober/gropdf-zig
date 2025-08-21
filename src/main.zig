@@ -7,6 +7,10 @@ pub fn main() !void {
     var doc = try pdf.Document.init();
     const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
     const fontNumTi = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
+    // TODO add text object support
+    // const text = page.addText() // handle BT...ET parentheses
+    // text.setFont(font); // refrences font if not already
+    // text.addLine("...")
     const page = try doc.addPage("BT\n/F0 36. Tf\n1 0 0 1 120 700 Tm\n50 TL\n(Hello, World!) Tj T*\n/F1 12. Tf\n(This is a second sentence!) Tj\nET");
     try page.resources.append(fontNumHv);
     try page.resources.append(fontNumTi);
