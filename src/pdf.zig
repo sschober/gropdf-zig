@@ -8,6 +8,15 @@ const allocator = gpa.allocator();
 
 const String = []const u8;
 
+/// header bytes which define pdf document version; the second line
+/// should actually be binary data, but as zig sources are utf-8, that
+/// would mess with byte counting
+const PDF_1_1_HEADER =
+    \\%PDF-1.1
+    \\%abc
+    \\
+;
+
 /// Standard font name definitions as defined by adobe in (pdfref17)
 pub const StandardFonts = enum {
     Times_Roman,
@@ -32,6 +41,9 @@ pub const StandardFonts = enum {
         }
     }
 };
+
+/// root node of a tree of pages; contains no content itself, but only points
+/// to 'kids'
 pub const Pages = struct {
     objNum: usize,
     kids: std.ArrayList(*Page),
@@ -49,7 +61,7 @@ pub const Pages = struct {
             \\/Kids [
         , .{});
         for (self.kids.items) |kid| {
-            try writer.print("{d} 0 R", .{kid.objNum});
+            try writer.print("{d} 0 R ", .{kid.objNum});
         }
         try writer.print(
             \\]
@@ -59,7 +71,7 @@ pub const Pages = struct {
         , .{self.kids.items.len});
     }
 
-    fn addPage(self: *Pages, n: usize, c: usize) !*Page {
+    fn addPage(self: *Pages, n: usize, c: *Stream) !*Page {
         const res = try allocator.create(Page);
         res.* = Page.init(n, self.objNum, c);
         try self.kids.append(res);
@@ -73,6 +85,7 @@ pub const Pages = struct {
     }
 };
 
+/// contains the actual content of pages, e.g., text objects (BT..ET)
 pub const Stream = struct {
     objNum: usize,
     stream: String,
@@ -99,6 +112,8 @@ pub const Stream = struct {
     }
 };
 
+/// declares fonts in pdf documents; is referenced in resource dictionaries
+/// in pages
 pub const Font = struct {
     objNum: usize,
     fontNum: usize,
@@ -124,14 +139,16 @@ pub const Font = struct {
     }
 };
 
+/// envelope around page content; defines media box, font references and content
+/// references
 pub const Page = struct {
     objNum: usize,
     parentNum: usize,
-    contentsNum: usize,
+    contents: *Stream,
     /// fonts are referenced as resources
     resources: std.ArrayList(usize),
-    pub fn init(n: usize, p: usize, c: usize) Page {
-        return Page{ .objNum = n, .parentNum = p, .contentsNum = c, .resources = std.ArrayList(usize).init(allocator) };
+    pub fn init(n: usize, p: usize, c: *Stream) Page {
+        return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = std.ArrayList(usize).init(allocator) };
     }
     pub fn resString(self: Page) !String {
         var res = std.ArrayList(u8).init(allocator);
@@ -155,7 +172,7 @@ pub const Page = struct {
             \\>>
             \\>>
             \\
-        , .{ self.parentNum, self.contentsNum, try self.resString() });
+        , .{ self.parentNum, self.contents.objNum, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try allocator.create(Object);
@@ -164,6 +181,7 @@ pub const Page = struct {
     }
 };
 
+/// references the page tree root node; no other purpose
 const Catalog = struct {
     objNum: usize,
     pages: String,
@@ -208,12 +226,6 @@ pub const Object = union(enum) {
     }
 };
 
-const PDF_1_1_HEADER =
-    \\%PDF-1.1
-    \\%abc
-    \\
-;
-
 pub const Document = struct {
     objs: std.ArrayList(*Object),
     fonts: std.ArrayList(*Font),
@@ -243,10 +255,19 @@ pub const Document = struct {
         return objIdx;
     }
 
+    pub fn addEmptyPage(self: *Document) !*Page {
+        const objIdx = self.objs.items.len + 1;
+        const stream = try Stream.init(objIdx + 1, "");
+        const page = try self.pages.addPage(objIdx, stream);
+        try self.addObj(try page.pdfObj());
+        try self.addObj(try stream.pdfObj());
+        return page;
+    }
+
     pub fn addPage(self: *Document, s: String) !*Page {
         const objIdx = self.objs.items.len + 1;
         const stream = try Stream.init(objIdx + 1, s);
-        const page = try self.pages.addPage(objIdx, stream.objNum);
+        const page = try self.pages.addPage(objIdx, stream);
         try self.addObj(try page.pdfObj());
         try self.addObj(try stream.pdfObj());
         return page;
