@@ -116,6 +116,7 @@ pub const Stream = struct {
 /// in pages
 pub const Font = struct {
     objNum: usize,
+    /// fonts are numbered in a document; the numbers are managed and assign in Document
     fontNum: usize,
     fontDef: String,
     pub fn init(n: usize, l: usize, f: String) !*Font {
@@ -144,8 +145,10 @@ pub const Font = struct {
 pub const Page = struct {
     objNum: usize,
     parentNum: usize,
+    /// a stream object encapsulates the actual page contents, e.g., text objects
     contents: *Stream,
-    /// fonts are referenced as resources
+    /// fonts have to be referenced as resources by their font and object number:
+    /// /F0 3 0 R
     resources: std.ArrayList(usize),
     pub fn init(n: usize, p: usize, c: *Stream) Page {
         return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = std.ArrayList(usize).init(allocator) };
@@ -206,7 +209,11 @@ const Catalog = struct {
     }
 };
 
-/// interface of all pdf objects
+/// interface of all pdf objects; needed, to be able to add all
+/// objects to an ArrayList in Document; later during printing of
+/// the document, we iterator over all objects and call the respective
+/// print function, which is type specific; in OO languages, this is
+/// dynamic dispatch
 pub const Object = union(enum) {
     pages: *Pages,
     page: *Page,
