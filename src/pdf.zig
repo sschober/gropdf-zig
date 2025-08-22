@@ -7,6 +7,7 @@ var gpa = std.heap.DebugAllocator(.{}){};
 const allocator = gpa.allocator();
 
 const String = []const u8;
+const ArrayList = std.array_list.Managed;
 
 /// header bytes which define pdf document version; the second line
 /// should actually be binary data, but as zig sources are utf-8, that
@@ -46,11 +47,11 @@ pub const StandardFonts = enum {
 /// to 'kids'
 pub const Pages = struct {
     objNum: usize,
-    kids: std.ArrayList(*Page),
+    kids: ArrayList(*Page),
 
     pub fn init(n: usize) !*Pages {
         const result = try allocator.create(Pages);
-        result.* = Pages{ .objNum = n, .kids = std.ArrayList(*Page).init(allocator) };
+        result.* = Pages{ .objNum = n, .kids = ArrayList(*Page).init(allocator) };
         return result;
     }
 
@@ -149,12 +150,12 @@ pub const Page = struct {
     contents: *Stream,
     /// fonts have to be referenced as resources by their font and object number:
     /// /F0 3 0 R
-    resources: std.ArrayList(usize),
+    resources: ArrayList(usize),
     pub fn init(n: usize, p: usize, c: *Stream) Page {
-        return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = std.ArrayList(usize).init(allocator) };
+        return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
     }
     pub fn resString(self: Page) !String {
-        var res = std.ArrayList(u8).init(allocator);
+        var res = ArrayList(u8).init(allocator);
         try res.writer().print("<<\n", .{});
         for (self.resources.items, 0..) |item, i| {
             try res.writer().print("/F{d} {d} 0 R\n", .{ i, item });
@@ -234,8 +235,8 @@ pub const Object = union(enum) {
 };
 
 pub const Document = struct {
-    objs: std.ArrayList(*Object),
-    fonts: std.ArrayList(*Font),
+    objs: ArrayList(*Object),
+    fonts: ArrayList(*Font),
     pages: *Pages,
     catalog: *Catalog,
 
@@ -244,7 +245,7 @@ pub const Document = struct {
     }
 
     pub fn init() !Document {
-        var self = Document{ .objs = std.ArrayList(*Object).init(allocator), .pages = try Pages.init(1), .catalog = try Catalog.init(2), .fonts = std.ArrayList(*Font).init((allocator)) };
+        var self = Document{ .objs = ArrayList(*Object).init(allocator), .pages = try Pages.init(1), .catalog = try Catalog.init(2), .fonts = ArrayList(*Font).init((allocator)) };
         try self.addObj(try self.pages.pdfObj());
         try self.addObj(try self.catalog.pdfObj());
         return self;
@@ -282,7 +283,7 @@ pub const Document = struct {
 
     pub fn print(self: Document, writer: anytype) !void {
         var byteCount: usize = 0;
-        var objIndices = std.ArrayList(usize).init(allocator);
+        var objIndices = ArrayList(usize).init(allocator);
 
         // header
         try writer.print("{s}", .{PDF_1_1_HEADER});
@@ -291,7 +292,7 @@ pub const Document = struct {
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
-            var objBytes = std.ArrayList(u8).init(allocator);
+            var objBytes = ArrayList(u8).init(allocator);
             try obj.write(objBytes.writer());
             const objStr = try std.fmt.allocPrint(allocator,
                 \\{d} 0 obj

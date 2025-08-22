@@ -35,6 +35,9 @@ pub fn main() !void {
     // const text = page.addText() // handle BT...ET parentheses
     // text.setFont(font); // refrences font if not already
     // text.addLine("...")
-    const writer = std.io.getStdOut().writer();
-    try doc.print(writer);
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+    try doc.print(stdout);
+    try stdout.flush();
 }
