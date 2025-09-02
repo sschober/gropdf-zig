@@ -86,16 +86,52 @@ pub const Pages = struct {
     }
 };
 
+/// pdf text object api above an array of lines
+pub const TextObject = struct {
+    lines: ArrayList(String) = ArrayList(String).init(allocator),
+    pub fn init() !*TextObject {
+        const res = try allocator.create(TextObject);
+        res.* = TextObject{};
+        return res;
+    }
+    pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
+    }
+    pub fn setTextMatrix(self: *TextObject, e: usize, f: usize) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ e, f }));
+    }
+    pub fn setLeading(self: *TextObject, l: usize) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
+    }
+    pub fn addText(self: *TextObject, s: String) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj", .{s}));
+    }
+    pub fn newLine(self: *TextObject) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "T*", .{}));
+    }
+    pub fn write(self: TextObject, writer: anytype) !void {
+        try writer.print("BT\n", .{});
+        for (self.lines.items) |line| {
+            try writer.print("{s}\n", .{line});
+        }
+        try writer.print("ET\n", .{});
+    }
+};
+
 /// contains the actual content of pages, e.g., text objects (BT..ET)
 pub const Stream = struct {
     objNum: usize,
-    stream: String,
-    pub fn init(n: usize, s: String) !*Stream {
+    textObject: *TextObject,
+
+    pub fn init(n: usize) !*Stream {
         const res = try allocator.create(Stream);
-        res.* = Stream{ .objNum = n, .stream = s };
+        res.* = Stream{ .objNum = n, .textObject = try TextObject.init() };
         return res;
     }
     pub fn write(self: Stream, writer: anytype) !void {
+        var objBytes = ArrayList(u8).init(allocator);
+        try self.textObject.write(objBytes.writer());
+        const stream = objBytes.items;
         try writer.print(
             \\<<
             \\/Length {d}
@@ -104,7 +140,7 @@ pub const Stream = struct {
             \\{s}
             \\endstream
             \\
-        , .{ self.stream.len, self.stream });
+        , .{ stream.len, stream });
     }
     pub fn pdfObj(self: *Stream) !*Object {
         const res = try allocator.create(Object);
@@ -258,23 +294,21 @@ pub const Document = struct {
 
     pub fn addFont(self: *Document, f: String) !usize {
         const objIdx = self.objs.items.len + 1;
+        const fontNum = self.fonts.items.len;
         const font = try Font.init(objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
-        return objIdx;
+        try self.fonts.append(font);
+        return fontNum;
     }
 
-    pub fn addEmptyPage(self: *Document) !*Page {
-        const objIdx = self.objs.items.len + 1;
-        const stream = try Stream.init(objIdx + 1, "");
-        const page = try self.pages.addPage(objIdx, stream);
-        try self.addObj(try page.pdfObj());
-        try self.addObj(try stream.pdfObj());
-        return page;
+    pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
+        const font = self.fonts.items[fNum];
+        try page.resources.append(font.objNum);
     }
 
-    pub fn addPage(self: *Document, s: String) !*Page {
+    pub fn addPage(self: *Document) !*Page {
         const objIdx = self.objs.items.len + 1;
-        const stream = try Stream.init(objIdx + 1, s);
+        const stream = try Stream.init(objIdx + 1);
         const page = try self.pages.addPage(objIdx, stream);
         try self.addObj(try page.pdfObj());
         try self.addObj(try stream.pdfObj());
