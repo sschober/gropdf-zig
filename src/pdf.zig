@@ -88,6 +88,7 @@ pub const Pages = struct {
 
 /// pdf text object api above an array of lines
 pub const TextObject = struct {
+    curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
     lines: ArrayList(String) = ArrayList(String).init(allocator),
     pub fn init() !*TextObject {
         const res = try allocator.create(TextObject);
@@ -103,11 +104,16 @@ pub const TextObject = struct {
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
     }
+    pub fn addWord(self: *TextObject, s: String) !void {
+        try self.curLine.appendSlice(s);
+    }
     pub fn addText(self: *TextObject, s: String) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj", .{s}));
+        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj T*", .{s}));
     }
     pub fn newLine(self: *TextObject) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "T*", .{}));
+        //try self.lines.append(try std.fmt.allocPrint(allocator, "T*", .{}));
+        try self.addText(self.curLine.items);
+        self.curLine = ArrayList(u8).init(allocator);
     }
     pub fn write(self: TextObject, writer: anytype) !void {
         try writer.print("BT\n", .{});

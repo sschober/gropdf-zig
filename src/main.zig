@@ -61,7 +61,12 @@ pub fn main() !void {
                 // TODO x: implement sub-command parsing
             },
             .t => {
-                try curPage.contents.textObject.addText(line[1..]);
+                try curPage.contents.textObject.addWord(line[1..]);
+            },
+            .w => {
+                if (line[1] == 'h') {
+                    try curPage.contents.textObject.addWord(" ");
+                }
             },
             .n => {
                 try curPage.contents.textObject.newLine();
