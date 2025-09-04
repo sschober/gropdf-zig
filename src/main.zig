@@ -54,11 +54,14 @@ pub fn main() !void {
             .f => {
                 try doc.addFontRefTo(curPage, fontNumTi);
                 try curPage.contents.textObject.selectFont(fontNumTi, 12);
-                try curPage.contents.textObject.setTextMatrix(120, 700);
-                try curPage.contents.textObject.setLeading(24);
+                try curPage.contents.textObject.setTextMatrix(30, 750);
+                try curPage.contents.textObject.setLeading(16);
             },
             .x => {
                 // TODO x: implement sub-command parsing
+            },
+            .C => {
+                try curPage.contents.textObject.addWord(line[1..]);
             },
             .t => {
                 try curPage.contents.textObject.addWord(line[1..]);
