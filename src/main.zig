@@ -15,6 +15,7 @@ pub fn main() !void {
 
     var doc = try pdf.Document.init();
     // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
+    // TODO add real font support
     const fontNumTi = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
 
     // read loop to parse and dispatch groff out input
@@ -22,11 +23,8 @@ pub fn main() !void {
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
     var reader = &stdin_reader.interface;
     var lineNum: usize = 0;
-    // initialize current page pointer with a not used dummy object, as zig
-    // does not allow null pointers.
-    const dummyStream = try pdf.Stream.init(0);
-    var dummyPage = pdf.Page.init(0, 0, dummyStream);
-    var curPage: *pdf.Page = &dummyPage;
+    var curPage: ?*pdf.Page = null;
+    var curTextObject: ?*pdf.TextObject = null;
     while (reader.takeDelimiterExclusive('\n')) |line| {
         if (line.len == 0) {
             break;
@@ -41,29 +39,30 @@ pub fn main() !void {
         switch (cmd) {
             .p => {
                 curPage = try doc.addPage();
+                curTextObject = curPage.?.contents.textObject;
             },
             .f => {
-                try doc.addFontRefTo(curPage, fontNumTi);
-                try curPage.contents.textObject.selectFont(fontNumTi, 12);
-                try curPage.contents.textObject.setTextMatrix(30, 750);
-                try curPage.contents.textObject.setLeading(16);
+                try doc.addFontRefTo(curPage.?, fontNumTi);
+                try curTextObject.?.selectFont(fontNumTi, 12);
+                try curTextObject.?.setTextMatrix(30, 750);
+                try curTextObject.?.setLeading(16);
             },
             .x => {
                 // TODO x: implement sub-command parsing
             },
             .C => {
-                try curPage.contents.textObject.addWord(line[1..]);
+                try curTextObject.?.addWord(line[1..]);
             },
             .t => {
-                try curPage.contents.textObject.addWord(line[1..]);
+                try curTextObject.?.addWord(line[1..]);
             },
             .w => {
                 if (line[1] == 'h') {
-                    try curPage.contents.textObject.addWord(" ");
+                    try curTextObject.?.addWord(" ");
                 }
             },
             .n => {
-                try curPage.contents.textObject.newLine();
+                try curTextObject.?.newLine();
             },
             else => {
                 try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });
@@ -71,10 +70,6 @@ pub fn main() !void {
         }
         try stdout.flush();
     } else |_| {}
-    // TODO add text object support
-    // const text = page.addText() // handle BT...ET parentheses
-    // text.setFont(font); // refrences font if not already
-    // text.addLine("...")
     try doc.print(stdout);
     try stdout.flush();
 }
