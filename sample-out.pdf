@@ -36,15 +36,29 @@ endobj
 endobj
 5 0 obj
 <<
-/Length 274
+/Length 535
 >>
 stream
 BT
 /F0 12. Tf
 1 0 0 1 30 750 Tm
 16 TL
-(This file contains only two paragraphs of text. It can be used to test verify some formatting properties. The is the) Tj T*
-(second paragraph. It contains a few sentences. Use mato to inspect, what groff source code resides.) Tj T*
+(  ) Tj T*
+() Tj T*
+() Tj T*
+() Tj T*
+() Tj T*
+() Tj T*
+() Tj T*
+(This file contains only two paragraphs of text. It can be used to) Tj T*
+(test verify some formatting properties. For some reason, the) Tj T*
+(next PP command has no effect.) Tj T*
+(This is the second paragraph. It contains a few sentences.) Tj T*
+(Use mato to inspect, what groff source code results.) Tj T*
+(This is a third paragraph. It follows, that the first senhy) Tj T*
+(tence above is a lie.) Tj T*
+() Tj T*
+(-1-) Tj T*
 ET
 
 endstream
@@ -63,4 +77,4 @@ trailer
 /Size 6
 >>
 startxref
-645
+906

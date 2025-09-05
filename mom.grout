@@ -1,0 +1,317 @@
+x T pdf
+x res 72000 1 1
+x init
+p1
+V12000
+H72000
+x font 5 TR
+f5
+s10000
+V12000
+H72000
+md
+DFd
+x X ps: exec 0 setlinejoin
+V12000
+H72000
+x X ps: exec 0 setlinecap
+wh2500
+V12000
+H74500
+x X ps: def
++grops begin
++/decornone { grops begin /X { } def /Y { } def /y2 -1 def end } def
++/decorline { grops begin u neg /uld exch def u /ulw exch def
++             /X { currentpoint /y0 exch def /x0 exch def } def
++             /Y { currentpoint /y1 exch def /x1 exch def
++                  drawline /x2 x1 def /y2 y1 def } def end } def
++/drawline { gsave ulw setlinewidth 0 setlinecap x1 y1 uld sub moveto
++            y2 y0 eq { x2 y2 } { x0 y0 } ifelse uld sub lineto stroke
++            grestore } def
++decornone
++/uld 0 def
++/ulw 0 def
++/A { X show Y } def
++/B { 0 SC 3 -1 roll X widthshow Y } def
++/C { 0 exch X ashow Y } def
++/D { 0 exch 0 SC 5 2 roll X awidthshow Y } def
++/E { 0 rmoveto X show Y } def
++/F { 0 rmoveto 0 SC 3 -1 roll X widthshow Y } def
++/G { 0 rmoveto 0 exch X ashow Y } def
++/H { 0 rmoveto 0 exch 0 SC 5 2 roll X awidthshow Y } def
++/I { 0 exch rmoveto X show Y } def
++/J { 0 exch rmoveto 0 SC 3 -1 roll X widthshow Y } def
++/K { 0 exch rmoveto 0 exch X ashow Y } def
++/L { 0 exch rmoveto 0 exch 0 SC 5 2 roll X awidthshow Y } def
++/M { rmoveto X show Y } def
++/N { rmoveto 0 SC 3 -1 roll X widthshow Y } def
++/O { rmoveto 0 exch X ashow Y } def
++/P { rmoveto 0 exch 0 SC 5 2 roll X awidthshow Y } def
++/Q { moveto X show Y } def
++/R { moveto 0 SC 3 -1 roll X widthshow Y } def
++/S { moveto 0 exch X ashow Y } def
++/T { moveto 0 exch 0 SC 5 2 roll X awidthshow Y } def
++end
++
+wh2500
+Dt 500 0
+n12000 0
+x X ps:exec [/PageMode /UseOutlines /DOCVIEW pdfmark
+V24000
+H72000
+V24000
+H72000
+x X papersize=612000z,792000z
+V24000
+H72000
+x X papersize=612000z,792000z
+V24000
+H72000
+x X papersize=612000z,792000z
+n12000 0
+V36000
+H72000
+V36000
+H72000
+x X papersize=612000z,792000z
+n12000 0
+V52000
+H72000
+s12500
+V52000
+H72000
+x X papersize=417600z,792000z
+V52000
+H72000
+x X papersize=417600z,648000z
+n16000 0
+V38000
+H72000
+V38000
+H72000
+x X papersize=421000z,648000z
+V38000
+H72000
+x X papersize=421000z,595000z
+n0 0
+V38000
+H72000
+s11000
+V38000
+H72000
+x X ps: exec 0 setlinejoin
+V38000
+H72000
+x X ps: exec 0 setlinecap
+n0 0
+V38000
+H72000
+V38000
+H72000
+x X papersize=421000z,595000z
+V38000
+H72000
+x X papersize=421000z,595000z
+n0 0
+x X ps:exec [/Dest /pdf:bm1 /View [/FitH 34242 u] /DEST pdfmark
+x X ps:exec [/Dest /pdf:bm1 /Title () /Level 1 /OUT pdfmark
+V70242
+H72000
+V70242
+H72000
+x X ps: exec decornone
+tThis
+wh2765
+Cfi
+h6116
+tle
+wh2765
+tcontains
+wh2765
+tonly
+wh2765
+ttw
+H183787
+to
+wh2765
+tparagraphs
+wh2765
+tof
+wh2764
+tte
+H262778
+txt.
+wh2764
+tIt
+wh2764
+tcan
+wh2764
+tbe
+wh2764
+tused
+wh2764
+tto
+n16242 0
+V86484
+H72000
+ttest
+wh4497
+tv
+H97111
+terify
+wh4497
+tsome
+wh4497
+tformatting
+wh4497
+tproperties.
+wh4497
+tF
+H258220
+tor
+wh4498
+tsome
+wh4498
+treason,
+wh4498
+tthe
+n16242 0
+V102726
+H72000
+tne
+H82219
+txt
+wh2750
+tPP
+wh2750
+tcommand
+wh2750
+thas
+wh2750
+tno
+wh2750
+tef
+H194078
+tfect.
+n16242 0
+V118968
+H97000
+V118968
+H97000
+x X ps: exec decornone
+tThis
+wh2779
+tis
+wh2779
+tthe
+wh2778
+tsecond
+wh2778
+tparagraph.
+wh2778
+tIt
+wh2778
+tcontains
+wh2778
+ta
+wh2778
+tfe
+H293378
+tw
+wh2778
+tsentences.
+n16242 0
+V135210
+H72000
+tUse
+wh2750
+tmato
+wh2750
+tto
+wh2750
+tinspect,
+wh2750
+twhat
+wh2750
+tgrof
+H206761
+tf
+wh2750
+tsource
+wh2750
+tcode
+wh2750
+tresults.
+n16242 0
+V151452
+H97000
+V151452
+H97000
+x X ps: exec decornone
+tThis
+wh4513
+tis
+wh4513
+ta
+wh4513
+tthird
+wh4513
+tparagraph.
+wh4513
+tIt
+wh4513
+tfollo
+H250589
+tws,
+wh4514
+tthat
+wh4514
+tthe
+wh4514
+Cfi
+h6116
+trst
+wh4514
+tsen
+Chy
+h3663
+n16242 0
+V167694
+H72000
+ttence
+wh2750
+tabo
+H113679
+tv
+H119014
+te
+wh2750
+tis
+wh2750
+ta
+wh2750
+tlie.
+n16242 0
+x X pdf: marksuspend
+V179694
+H72000
+s10000
+V179694
+H72000
+x X ps: exec decornone
+n12000 0
+s11000
+V558381
+H203169
+t-
+h918
+v619
+t1
+h918
+V558381
+t-
+v619
+n12000 0
+x trailer
+V595000
+x stop

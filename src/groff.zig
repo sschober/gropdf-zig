@@ -13,6 +13,7 @@ pub const Out = enum {
     H,
     /// TODO set horizontal position relative
     h,
+    v,
     m,
     D,
     /// type-set word

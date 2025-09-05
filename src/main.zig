@@ -16,19 +16,6 @@ pub fn main() !void {
     var doc = try pdf.Document.init();
     // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
     const fontNumTi = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
-    // const page = try doc.addPage(
-    //     \\BT
-    //     \\/F0 36. Tf
-    //     \\1 0 0 1 120 700 Tm
-    //     \\50 TL
-    //     \\(Hello, World! This is a very long head line) Tj T*
-    //     \\/F1 12. Tf
-    //     \\(This is a second sentence!) Tj
-    //     \\ET
-    //     \\
-    // );
-    // try page.resources.append(fontNumHv);
-    // try page.resources.append(fontNumTi);
 
     // read loop to parse and dispatch groff out input
     var stdin_buffer: [4096]u8 = undefined;
@@ -45,6 +32,10 @@ pub fn main() !void {
             break;
         }
         lineNum += 1;
+        try stderr.print("{d}\n", .{lineNum});
+        if (line[0] == '+') {
+            continue;
+        }
         const cmdStr = line[0..1];
         const cmd = std.meta.stringToEnum(groff.Out, cmdStr).?;
         switch (cmd) {
@@ -75,7 +66,7 @@ pub fn main() !void {
                 try curPage.contents.textObject.newLine();
             },
             else => {
-                try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line[1..] });
+                try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });
             },
         }
         try stdout.flush();
