@@ -90,6 +90,8 @@ pub const Pages = struct {
 pub const TextObject = struct {
     curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
     lines: ArrayList(String) = ArrayList(String).init(allocator),
+    e: usize = 0,
+    f: usize = 0,
     pub fn init() !*TextObject {
         const res = try allocator.create(TextObject);
         res.* = TextObject{};
@@ -101,20 +103,38 @@ pub const TextObject = struct {
     pub fn setTextMatrix(self: *TextObject, e: usize, f: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ e, f }));
     }
+    pub fn setE(self: *TextObject, e: usize) void {
+        self.e = e;
+        // try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
+    }
+    pub fn setF(self: *TextObject, f: usize) void {
+        self.f = 760 - f;
+        // try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
+    }
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
+    }
+    pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "{d} 0 Td", .{h}));
+    }
+    pub fn addVerticalSpace(self: *TextObject, v: usize) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "0 {d} Td", .{v}));
     }
     pub fn addWord(self: *TextObject, s: String) !void {
         try self.curLine.appendSlice(s);
     }
     pub fn addText(self: *TextObject, s: String) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj T*", .{s}));
+        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj", .{s}));
     }
+
     pub fn newLine(self: *TextObject) !void {
-        //try self.lines.append(try std.fmt.allocPrint(allocator, "T*", .{}));
-        try self.addText(self.curLine.items);
-        self.curLine = ArrayList(u8).init(allocator);
+        if (self.curLine.items.len > 0) {
+            try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
+            try self.addText(self.curLine.items);
+            self.curLine = ArrayList(u8).init(allocator);
+        }
     }
+
     pub fn write(self: TextObject, writer: anytype) !void {
         try writer.print("BT\n", .{});
         for (self.lines.items) |line| {

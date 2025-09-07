@@ -30,7 +30,7 @@ pub fn main() !void {
             break;
         }
         lineNum += 1;
-        try stderr.print("{d}\n", .{lineNum});
+        //try stderr.print("{d}\n", .{lineNum});
         if (line[0] == '+') {
             continue;
         }
@@ -44,8 +44,6 @@ pub fn main() !void {
             .f => {
                 try doc.addFontRefTo(curPage.?, fontNumTi);
                 try curTextObject.?.selectFont(fontNumTi, 12);
-                try curTextObject.?.setTextMatrix(30, 750);
-                try curTextObject.?.setLeading(16);
             },
             .x => {
                 // TODO x: implement sub-command parsing
@@ -63,6 +61,23 @@ pub fn main() !void {
             },
             .n => {
                 try curTextObject.?.newLine();
+            },
+            .V => {
+                // vertical absolute positioning
+                // V151452
+                const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
+                const v = v_z / (72 * 12);
+                try stderr.print("V {d} => {d}\n", .{ v_z, v });
+                curTextObject.?.setF(v);
+            },
+            .H => {
+                // vertical absolute positioning
+                // H72000
+                // H97000
+                const h_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
+                const h = h_z / (72 * 100);
+                try stderr.print("H {d} => {d}\n", .{ h_z, h });
+                curTextObject.?.setE(h);
             },
             else => {
                 try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });
