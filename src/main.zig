@@ -75,9 +75,7 @@ pub fn main() !void {
                 // H72000
                 // H97000
                 const h_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                const h = h_z / (72 * 100);
-                try stderr.print("H {d} => {d}\n", .{ h_z, h });
-                curTextObject.?.setE(h);
+                try curTextObject.?.setE(pdf.zPosition{ .v = h_z });
             },
             else => {
                 try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });

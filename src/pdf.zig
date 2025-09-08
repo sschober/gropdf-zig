@@ -85,12 +85,27 @@ pub const Pages = struct {
         return res;
     }
 };
-
+pub const FixPoint = struct {
+    n: usize = 0,
+    d: usize = 1,
+    pub fn toString(self: FixPoint) !String {
+        var res = ArrayList(u8).init(allocator);
+        try res.writer().print("{d}.{d}", .{ self.n, self.d });
+        return res.items;
+    }
+};
+pub const zPosition = struct {
+    v: usize = 0,
+    unitsize: usize = 1000,
+    pub fn toUserSpace(self: zPosition) FixPoint {
+        return FixPoint{ .n = self.v / self.unitsize, .d = self.v % self.unitsize };
+    }
+};
 /// pdf text object api above an array of lines
 pub const TextObject = struct {
     curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
     lines: ArrayList(String) = ArrayList(String).init(allocator),
-    e: usize = 0,
+    e: FixPoint = FixPoint{},
     f: usize = 0,
     pub fn init() !*TextObject {
         const res = try allocator.create(TextObject);
@@ -100,16 +115,16 @@ pub const TextObject = struct {
     pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
     }
-    pub fn setTextMatrix(self: *TextObject, e: usize, f: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ e, f }));
+    pub fn flushPos(self: *TextObject) !void {
+        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {s} {d} Tm", .{ try self.e.toString(), self.f }));
     }
-    pub fn setE(self: *TextObject, e: usize) void {
-        self.e = e;
-        // try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
+    pub fn setE(self: *TextObject, h: zPosition) !void {
+        try self.newLine();
+        self.e = h.toUserSpace();
+        try self.flushPos();
     }
     pub fn setF(self: *TextObject, f: usize) void {
         self.f = 760 - f;
-        // try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
@@ -129,7 +144,7 @@ pub const TextObject = struct {
 
     pub fn newLine(self: *TextObject) !void {
         if (self.curLine.items.len > 0) {
-            try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {d} {d} Tm", .{ self.e, self.f }));
+            // try self.flushPos();
             try self.addText(self.curLine.items);
             self.curLine = ArrayList(u8).init(allocator);
         }
