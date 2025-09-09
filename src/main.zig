@@ -46,7 +46,35 @@ pub fn main() !void {
                 try curTextObject.?.selectFont(fontNumTi, 12);
             },
             .x => {
-                // TODO x: implement sub-command parsing
+                // x X papersize
+                if (line.len > 2) {
+                    var it = std.mem.splitScalar(u8, line[2..], ' ');
+                    const subCmd = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
+                    switch (subCmd) {
+                        .T => {
+                            // TODO x T
+                        },
+                        .X => {
+                            // x X papersize=421000z,595000z
+                            const arg = it.next().?;
+                            try stderr.print("x X {s}\n", .{arg});
+                            if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
+                                if (0 == idxPapersize) {
+                                    // we found a `papersize` argument
+                                    if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
+                                        var itZSizes = std.mem.splitScalar(u8, arg[idxEqual..], ',');
+                                        const zX = itZSizes.next().?;
+                                        const zY = itZSizes.next().?;
+                                        try stderr.print("media box {s} {s}\n", .{ zX, zY });
+                                    }
+                                } else {
+                                    try stderr.print("unexpected index: {d}", .{idxPapersize});
+                                }
+                            }
+                        },
+                        else => {},
+                    }
+                }
             },
             .C => {
                 try curTextObject.?.addWord(line[1..]);

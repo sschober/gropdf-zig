@@ -25,3 +25,13 @@ pub const Out = enum {
     /// TODO next line
     n,
 };
+
+pub const XSubCommand = enum {
+    T,
+    res,
+    init,
+    font,
+    X,
+    trailer,
+    stop,
+};
