@@ -66,6 +66,15 @@ pub fn main() !void {
                                         const zX = itZSizes.next().?;
                                         const zY = itZSizes.next().?;
                                         try stderr.print("media box {s} {s}\n", .{ zX, zY });
+                                        if (zX.len > 3 and zX[zX.len - 1] == 'z') {
+                                            const x = try std.fmt.parseUnsigned(usize, zX[1 .. zX.len - 1], 10);
+                                            curPage.?.x = x / 1000;
+                                        }
+
+                                        if (zY.len > 2 and zY[zY.len - 1] == 'z') {
+                                            const y = try std.fmt.parseUnsigned(usize, zY[0 .. zY.len - 1], 10);
+                                            curPage.?.y = y / 1000;
+                                        }
                                     }
                                 } else {
                                     try stderr.print("unexpected index: {d}", .{idxPapersize});
@@ -96,10 +105,12 @@ pub fn main() !void {
                 const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
                 const v = v_z / (72 * 12);
                 try stderr.print("V {d} => {d}\n", .{ v_z, v });
-                curTextObject.?.setF(v);
+                if (v <= curPage.?.y) {
+                    curTextObject.?.setF(curPage.?.y - v);
+                }
             },
             .H => {
-                // vertical absolute positioning
+                // horizontal absolute positioning
                 // H72000
                 // H97000
                 const h_z = try std.fmt.parseUnsigned(usize, line[1..], 10);

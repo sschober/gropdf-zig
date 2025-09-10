@@ -124,7 +124,7 @@ pub const TextObject = struct {
         try self.flushPos();
     }
     pub fn setF(self: *TextObject, f: usize) void {
-        self.f = 760 - f;
+        self.f = f;
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
@@ -228,6 +228,8 @@ pub const Page = struct {
     /// fonts have to be referenced as resources by their font and object number:
     /// /F0 3 0 R
     resources: ArrayList(usize),
+    x: usize = 612,
+    y: usize = 792,
     pub fn init(n: usize, p: usize, c: *Stream) Page {
         return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
     }
@@ -246,14 +248,14 @@ pub const Page = struct {
             \\/Type /Page
             \\/Parent {d} 0 R
             \\/Contents {d} 0 R
-            \\/MediaBox [0 0 612 792]
+            \\/MediaBox [0 0 {d} {d}]
             \\/Resources
             \\<<
             \\/Font {s}
             \\>>
             \\>>
             \\
-        , .{ self.parentNum, self.contents.objNum, try self.resString() });
+        , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try allocator.create(Object);
