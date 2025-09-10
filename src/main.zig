@@ -62,12 +62,12 @@ pub fn main() !void {
                                 if (0 == idxPapersize) {
                                     // we found a `papersize` argument
                                     if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
-                                        var itZSizes = std.mem.splitScalar(u8, arg[idxEqual..], ',');
+                                        var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
                                         const zX = itZSizes.next().?;
                                         const zY = itZSizes.next().?;
                                         try stderr.print("media box {s} {s}\n", .{ zX, zY });
                                         if (zX.len > 3 and zX[zX.len - 1] == 'z') {
-                                            const x = try std.fmt.parseUnsigned(usize, zX[1 .. zX.len - 1], 10);
+                                            const x = try std.fmt.parseUnsigned(usize, zX[0 .. zX.len - 1], 10);
                                             curPage.?.x = x / 1000;
                                         }
 
