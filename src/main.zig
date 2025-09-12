@@ -107,7 +107,7 @@ pub fn main() !void {
                 // vertical absolute positioning
                 // V151452
                 const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                const v = v_z / (72 * 12);
+                const v = v_z / 1000;
                 try stderr.print("V {d} => {d}\n", .{ v_z, v });
                 if (v <= curPage.?.y) {
                     curTextObject.?.setF(curPage.?.y - v);
