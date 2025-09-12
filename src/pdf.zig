@@ -85,20 +85,49 @@ pub const Pages = struct {
         return res;
     }
 };
+
+/// 3 digit exact point decimal
 pub const FixPoint = struct {
     n: usize = 0,
-    d: usize = 1,
+    d: usize = 0,
     pub fn toString(self: FixPoint) !String {
         var res = ArrayList(u8).init(allocator);
         try res.writer().print("{d}.{d}", .{ self.n, self.d });
         return res.items;
     }
+    pub fn from(n: usize, d: usize) FixPoint {
+        var result = FixPoint{};
+        result.n = n / d;
+        var rest = n % d;
+        for (0..3) |_| {
+            // we `shift` previous result by one digti to the left
+            result.d = result.d * 10;
+            // and add the new digit
+            result.d += (10 * rest) / d;
+            // we update rest with what remains now
+            rest = (10 * rest) % d;
+        }
+        return result;
+    }
 };
+
+const expect = std.testing.expect;
+test "FixPoint" {
+    const fp = FixPoint.from(15, 2);
+    std.debug.print("fp {d}.{d}\n", .{ fp.n, fp.d });
+    try expect(fp.n == 7);
+    try expect(fp.d == 500);
+    const fp1 = FixPoint.from(10, 3);
+    std.debug.print("fp {d}.{d}\n", .{ fp1.n, fp1.d });
+    try expect(fp1.n == 3);
+    try expect(fp1.d == 333);
+}
 pub const zPosition = struct {
     v: usize = 0,
     unitsize: usize = 1000,
     pub fn toUserSpace(self: zPosition) FixPoint {
-        return FixPoint{ .n = self.v / self.unitsize, .d = self.v % self.unitsize };
+        // return FixPoint{ .n = self.v / self.unitsize, .d = self.v % self.unitsize };
+        return FixPoint.from(self.v, self.unitsize);
     }
 };
 /// pdf text object api above an array of lines
@@ -107,6 +136,7 @@ pub const TextObject = struct {
     lines: ArrayList(String) = ArrayList(String).init(allocator),
     e: FixPoint = FixPoint{},
     f: usize = 0,
+    w: FixPoint = FixPoint{},
     pub fn init() !*TextObject {
         const res = try allocator.create(TextObject);
         res.* = TextObject{};
@@ -128,6 +158,12 @@ pub const TextObject = struct {
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
+    }
+    pub fn setInterwordSpace(self: *TextObject, h: usize) !void {
+        const unitscale = 3000;
+        // self.w = FixPoint{ .d = h / unitscale, .n = h % unitscale };
+        self.w = FixPoint.from(h, unitscale);
+        try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.n, self.w.d }));
     }
     pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} 0 Td", .{h}));

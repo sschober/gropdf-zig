@@ -97,6 +97,9 @@ pub fn main() !void {
             },
             .w => {
                 if (line[1] == 'h') {
+                    const h = try std.fmt.parseInt(usize, line[2..], 10);
+                    try stderr.print("h: {d}\n", .{h});
+                    try curTextObject.?.setInterwordSpace(h);
                     try curTextObject.?.addWord(" ");
                 }
             },
