@@ -88,6 +88,10 @@ pub fn main() !void {
             .C => {
                 try curTextObject.?.addWord(line[1..]);
             },
+            .s => {
+                const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
+                try curTextObject.?.selectFont(fontNumTi, fontSize / 1000);
+            },
             .t => {
                 try curTextObject.?.addWord(line[1..]);
             },
