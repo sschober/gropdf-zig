@@ -47,7 +47,7 @@ pub const StandardFonts = enum {
 };
 
 /// root node of a tree of pages; contains no content itself, but only points
-/// to 'kids'
+/// to 'kids' objects of type `Page`
 pub const Pages = struct {
     objNum: usize,
     kids: ArrayList(*Page),
@@ -91,24 +91,30 @@ pub const Pages = struct {
 
 /// 3 digit exact point decimal
 pub const FixPoint = struct {
-    n: usize = 0,
-    d: usize = 0,
+    integer: usize = 0,
+    fraction: usize = 0,
     pub fn toString(self: FixPoint) !String {
         var res = ArrayList(u8).init(allocator);
-        try res.writer().print("{d}.{d}", .{ self.n, self.d });
+        try res.writer().print("{d}.{d}", .{ self.integer, self.fraction });
         return res.items;
     }
     pub fn from(n: usize, d: usize) FixPoint {
         var result = FixPoint{};
-        result.n = n / d;
+        result.integer = n / d;
         var rest = n % d;
         for (0..3) |_| {
+            // we also scale the prvious rest
+            const scaled_rest = 10 * rest;
+            // update rest with what remains now
+            rest = scaled_rest % d;
+            if (scaled_rest == 0 and rest == 0) {
+                // we can skip trailing `0`s: 7.5 == 7.50 === 7.500
+                break;
+            }
             // we `shift` previous result by one digti to the left
-            result.d = result.d * 10;
+            result.fraction *= 10;
             // and add the new digit
-            result.d += (10 * rest) / d;
-            // we update rest with what remains now
-            rest = (10 * rest) % d;
+            result.fraction += scaled_rest / d;
         }
         return result;
     }
@@ -117,13 +123,13 @@ pub const FixPoint = struct {
 const expect = std.testing.expect;
 test "FixPoint" {
     const fp = FixPoint.from(15, 2);
-    std.debug.print("fp {d}.{d}\n", .{ fp.n, fp.d });
-    try expect(fp.n == 7);
-    try expect(fp.d == 500);
+    std.debug.print("fp {d}.{d}\n", .{ fp.integer, fp.fraction });
+    try expect(fp.integer == 7);
+    try expect(fp.fraction == 5);
     const fp1 = FixPoint.from(10, 3);
-    std.debug.print("fp {d}.{d}\n", .{ fp1.n, fp1.d });
-    try expect(fp1.n == 3);
-    try expect(fp1.d == 333);
+    std.debug.print("fp {d}.{d}\n", .{ fp1.integer, fp1.fraction });
+    try expect(fp1.integer == 3);
+    try expect(fp1.fraction == 333);
 }
 
 pub const zPosition = struct {
@@ -168,7 +174,7 @@ pub const TextObject = struct {
         const spaceWidth = 2765;
         const delta = @min(h, spaceWidth);
         self.w = FixPoint.from(h - delta, UNITSCALE);
-        try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.n, self.w.d }));
+        try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
     }
     pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} 0 Td", .{h}));
