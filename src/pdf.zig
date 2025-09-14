@@ -163,6 +163,7 @@ pub const TextObject = struct {
         self.e = h.toUserSpace();
         try self.flushPos();
     }
+    // TODO make `f` a `zPosition`
     pub fn setF(self: *TextObject, f: usize) void {
         self.f = f;
     }
