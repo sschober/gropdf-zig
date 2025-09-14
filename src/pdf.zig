@@ -170,9 +170,9 @@ pub const TextObject = struct {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
     }
     pub fn setInterwordSpace(self: *TextObject, h: usize) !void {
-        // TODO read from font
-        const spaceWidth = 2765;
-        const delta = @min(h, spaceWidth);
+        // TODO read space_width from font
+        const space_width = 2765;
+        const delta = @min(h, space_width);
         self.w = FixPoint.from(h - delta, UNITSCALE);
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
     }
