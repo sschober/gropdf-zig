@@ -57,7 +57,7 @@ pub fn main() !void {
                         .X => {
                             // x X papersize=421000z,595000z
                             const arg = it.next().?;
-                            try stderr.print("x X {s}\n", .{arg});
+                            // try stderr.print("x X {s}\n", .{arg});
                             if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
                                 if (0 == idxPapersize) {
                                     // we found a `papersize` argument
@@ -103,7 +103,7 @@ pub fn main() !void {
             .w => {
                 if (line[1] == 'h') {
                     const h = try std.fmt.parseInt(usize, line[2..], 10);
-                    try stderr.print("h: {d}\n", .{h});
+                    // try stderr.print("h: {d}\n", .{h});
                     try curTextObject.?.setInterwordSpace(h);
                     try curTextObject.?.addWord(" ");
                 }
@@ -120,6 +120,10 @@ pub fn main() !void {
                 if (v <= curPage.?.y) {
                     curTextObject.?.setF(curPage.?.y - v);
                 }
+            },
+            .h => {
+                // we ignore `h` at the moment, as PDF already increases the position with each glyph
+                // and we replace C glyphs with concret chars.
             },
             .H => {
                 // horizontal absolute positioning
