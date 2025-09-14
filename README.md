@@ -4,6 +4,16 @@ Motivated by the approachability of `gropdf.pl` and the PDF spec,
 or to be exact, adobe's [pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf), I started this little experiment to see
 if I could implement a reasonable subset of `groff_out(5)`.
 
+At the moment, we implement a small subset of the `grout` language only:
+
+* We support only a single font, "Time New Roman", as that can be referenced very
+easily in PDF, without the need to embedd it.
+* No drawing commands are intepreted.
+
+The resulting PDF has some, let's call them inefficiencies. A lot of similar commands
+are issued in sequence, which could be compacted. As a lot of this is already present
+in the input, I chose to ignore it at the moment.
+
 ## Usage
 
 I provide a sample input file, `input.mom`, which contains `groff` source
