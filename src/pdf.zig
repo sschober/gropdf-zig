@@ -9,6 +9,9 @@ const allocator = gpa.allocator();
 const String = []const u8;
 const ArrayList = std.array_list.Managed;
 
+// TODO read unitscale from device DESC file
+pub const UNITSCALE = 1000;
+
 /// header bytes which define pdf document version; the second line
 /// should actually be binary data, but as zig sources are utf-8, that
 /// would mess with byte counting
@@ -122,14 +125,15 @@ test "FixPoint" {
     try expect(fp1.n == 3);
     try expect(fp1.d == 333);
 }
+
 pub const zPosition = struct {
     v: usize = 0,
-    unitsize: usize = 1000,
     pub fn toUserSpace(self: zPosition) FixPoint {
         // return FixPoint{ .n = self.v / self.unitsize, .d = self.v % self.unitsize };
-        return FixPoint.from(self.v, self.unitsize);
+        return FixPoint.from(self.v, UNITSCALE);
     }
 };
+
 /// pdf text object api above an array of lines
 pub const TextObject = struct {
     curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
@@ -160,9 +164,10 @@ pub const TextObject = struct {
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
     }
     pub fn setInterwordSpace(self: *TextObject, h: usize) !void {
-        const unitscale = 3000;
-        // self.w = FixPoint{ .d = h / unitscale, .n = h % unitscale };
-        self.w = FixPoint.from(h, unitscale);
+        // TODO read from font
+        const spaceWidth = 2765;
+        const delta = @min(h, spaceWidth);
+        self.w = FixPoint.from(h - delta, UNITSCALE);
         try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.n, self.w.d }));
     }
     pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {

@@ -68,12 +68,12 @@ pub fn main() !void {
                                         try stderr.print("media box {s} {s}\n", .{ zX, zY });
                                         if (zX.len > 3 and zX[zX.len - 1] == 'z') {
                                             const x = try std.fmt.parseUnsigned(usize, zX[0 .. zX.len - 1], 10);
-                                            curPage.?.x = x / 1000;
+                                            curPage.?.x = x / pdf.UNITSCALE;
                                         }
 
                                         if (zY.len > 2 and zY[zY.len - 1] == 'z') {
                                             const y = try std.fmt.parseUnsigned(usize, zY[0 .. zY.len - 1], 10);
-                                            curPage.?.y = y / 1000;
+                                            curPage.?.y = y / pdf.UNITSCALE;
                                         }
                                     }
                                 } else {
@@ -86,11 +86,16 @@ pub fn main() !void {
                 }
             },
             .C => {
-                try curTextObject.?.addWord(line[1..]);
+                if (std.mem.eql(u8, line[1..3], "hy")) {
+                    // TODO replace `-` with real glyph from font
+                    try curTextObject.?.addWord("-");
+                } else {
+                    try curTextObject.?.addWord(line[1..]);
+                }
             },
             .s => {
                 const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
-                try curTextObject.?.selectFont(fontNumTi, fontSize / 1000);
+                try curTextObject.?.selectFont(fontNumTi, fontSize / pdf.UNITSCALE);
             },
             .t => {
                 try curTextObject.?.addWord(line[1..]);
@@ -110,7 +115,7 @@ pub fn main() !void {
                 // vertical absolute positioning
                 // V151452
                 const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                const v = v_z / 1000;
+                const v = v_z / pdf.UNITSCALE;
                 try stderr.print("V {d} => {d}\n", .{ v_z, v });
                 if (v <= curPage.?.y) {
                     curTextObject.?.setF(curPage.?.y - v);
