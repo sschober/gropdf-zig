@@ -6,13 +6,15 @@ pub const Out = enum {
     p,
     /// select font
     f,
+    /// set font size
     s,
-    /// TODO set vertical position absolute
+    /// set vertical position absolute
     V,
-    /// TODO set horizontal position absolute
+    /// set horizontal position absolute
     H,
-    /// TODO set horizontal position relative
+    /// set horizontal position relative
     h,
+    /// set vertical position relative
     v,
     m,
     D,
@@ -22,7 +24,7 @@ pub const Out = enum {
     w,
     /// type-set glyph/character
     C,
-    /// TODO next line
+    /// next line
     n,
 };
 
