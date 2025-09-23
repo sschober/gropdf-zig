@@ -337,11 +337,10 @@ const Catalog = struct {
     }
 };
 
-/// interface of all pdf objects; needed, to be able to add all
-/// objects to an ArrayList in Document; later during printing of
-/// the document, we iterator over all objects and call the respective
-/// print function, which is type specific; in OO languages, this is
-/// dynamic dispatch
+/// interface of all pdf objects; needed, to be able to add all objects to an
+/// ArrayList in Document; later during printing of the document, we iterate
+/// over all objects and call the respective write() function, which ahs type
+/// specific implementations; in OO languages, this would be dynamic dispatch
 pub const Object = union(enum) {
     pages: *Pages,
     page: *Page,
@@ -361,28 +360,36 @@ pub const Object = union(enum) {
     }
 };
 
+/// pdf document object - main interaction point, use this to add fonts, pages
+/// and print the document.
 pub const Document = struct {
+    /// linear sequence of objects, that together form the document
     objs: ArrayList(*Object),
     fonts: ArrayList(*Font),
     pages: *Pages,
     catalog: *Catalog,
 
+    /// internal helper method to add a new object to the array list, which is
+    /// later needed to print the document.
     fn addObj(self: *Document, obj: *Object) !void {
         try self.objs.append(obj);
     }
 
+    /// initialze new document - starts out without fonts or pages
     pub fn init() !Document {
         var self = Document{ .objs = ArrayList(*Object).init(allocator), .pages = try Pages.init(1), .catalog = try Catalog.init(2), .fonts = ArrayList(*Font).init((allocator)) };
         try self.addObj(try self.pages.pdfObj());
         try self.addObj(try self.catalog.pdfObj());
         return self;
     }
+
     /// add an adobe defined standard font to the document
     /// returns the font number
     pub fn addStandardFont(self: *Document, stdFnt: StandardFonts) !usize {
         return self.addFont(stdFnt.string());
     }
 
+    /// add a font to the document by specifing its name
     pub fn addFont(self: *Document, f: String) !usize {
         const objIdx = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
@@ -392,11 +399,13 @@ pub const Document = struct {
         return fontNum;
     }
 
+    /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
         const font = self.fonts.items[fNum];
         try page.resources.append(font.objNum);
     }
 
+    /// add a new and empty page to the document and return a pointer to it
     pub fn addPage(self: *Document) !*Page {
         const objIdx = self.objs.items.len + 1;
         const stream = try Stream.init(objIdx + 1);

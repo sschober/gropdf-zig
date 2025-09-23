@@ -4,6 +4,8 @@ const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
 
+/// reads groff_out(5) and produces PDF 1.1
+/// reads from stdin and writes to stdout, takes no arguments ATM
 pub fn main() !void {
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
@@ -15,7 +17,7 @@ pub fn main() !void {
 
     var doc = try pdf.Document.init();
     // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
-    // TODO add real font support
+    // TODO add font support
     const fontNumTi = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
 
     // read loop to parse and dispatch groff out input
@@ -23,6 +25,7 @@ pub fn main() !void {
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
     var reader = &stdin_reader.interface;
     var lineNum: usize = 0;
+    // we use optionals here, as zig does not allow null pointers
     var curPage: ?*pdf.Page = null;
     var curTextObject: ?*pdf.TextObject = null;
     while (reader.takeDelimiterExclusive('\n')) |line| {
