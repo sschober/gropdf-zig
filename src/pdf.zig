@@ -10,7 +10,7 @@ const String = []const u8;
 const ArrayList = std.array_list.Managed;
 
 // TODO read unitscale from device DESC file
-pub const UNITSCALE = 1000;
+pub var UNITSCALE: usize = 1000;
 
 /// header bytes which define pdf document version; the second line
 /// should actually be binary data, but as zig sources are utf-8, that

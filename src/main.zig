@@ -6,7 +6,7 @@ const groff = @import("groff.zig");
 
 /// reads groff_out(5) and produces PDF 1.1
 /// reads from stdin and writes to stdout, takes no arguments ATM
-pub fn main() !void {
+pub fn main() !u8 {
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
@@ -60,8 +60,19 @@ pub fn main() !void {
                         .font => {
                             fontNumTi = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
                         },
+                        .res => {
+                            const arg = it.next().?;
+                            const res = try std.fmt.parseUnsigned(usize, arg, 10);
+                            const unitsize = res / 72;
+                            try stderr.print("setting unit scale to {d}", .{unitsize});
+                            pdf.UNITSCALE = unitsize;
+                        },
                         .T => {
-                            // TODO x T
+                            const arg = it.next().?;
+                            if (std.mem.indexOf(u8, arg, "pdf") != 0) {
+                                try stderr.print("unexpected output type: {s}", .{arg});
+                                return 1;
+                            }
                         },
                         .X => {
                             // x X papersize=421000z,595000z
@@ -134,6 +145,9 @@ pub fn main() !void {
                 // we ignore `h` at the moment, as PDF already increases the position with each glyph
                 // and we replace C glyphs with concret chars.
             },
+            .v => {
+                // we ignore `v` as it seems the absolute positioning commands are enough
+            },
             .H => {
                 // horizontal absolute positioning
                 // H72000
@@ -149,4 +163,5 @@ pub fn main() !void {
     } else |_| {}
     try doc.?.print(stdout);
     try stdout.flush();
+    return 0;
 }
