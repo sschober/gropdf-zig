@@ -89,7 +89,9 @@ pub const Pages = struct {
     }
 };
 
-/// 3 digit exact point decimal
+/// 3 digit exact point decimal - why? because, I think, we do not need
+/// floating points precision behavior - we only need three digits and these
+/// I want to be exact.
 pub const FixPoint = struct {
     integer: usize = 0,
     fraction: usize = 0,
@@ -140,29 +142,37 @@ pub const zPosition = struct {
     }
 };
 
-/// pdf text object api above an array of lines
+/// pdf text object api - internally, it uses an array of lines
 pub const TextObject = struct {
     curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
     lines: ArrayList(String) = ArrayList(String).init(allocator),
+    /// x coordinate, actually, but as pdf does matrix multiplication, we call it `e`
     e: FixPoint = FixPoint{},
+    /// y coordinate, actually, but as pdf does matrix multiplication, we call it `f`
     f: usize = 0,
+    /// inter-word whitespace
     w: FixPoint = FixPoint{},
+    /// initialze a new text object and its members
     pub fn init() !*TextObject {
         const res = try allocator.create(TextObject);
         res.* = TextObject{};
         return res;
     }
+    /// issue Tf command
     pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
     }
+    /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
         try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {s} {d} Tm", .{ try self.e.toString(), self.f }));
     }
+    /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: zPosition) !void {
         try self.newLine();
         self.e = h.toUserSpace();
         try self.flushPos();
     }
+    /// set `f` position - aka y coordinate
     // TODO make `f` a `zPosition`
     pub fn setF(self: *TextObject, f: usize) void {
         self.f = f;
