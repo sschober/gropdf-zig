@@ -60,7 +60,6 @@ groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
 Currently, the performance looks promising:
 
 ```bash
-```bash
 $ termgraph measures.lst 
 
 gropdf    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
