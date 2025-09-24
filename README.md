@@ -51,7 +51,7 @@ $ open sample-out.pdf
 You can also avoid the intermediate file and issue a pipeline command:
 
 ```bash
-groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
+$ groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
 ```
 
 
@@ -60,7 +60,7 @@ groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
 Currently, the performance looks promising:
 
 ```bash
-$ termgraph measures.lst 
+$ termgraph measures.lst
 
 gropdf    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
 gropdf_zig: ▇▇▇▇▇▇▇▇▇▇▇ 24.00
