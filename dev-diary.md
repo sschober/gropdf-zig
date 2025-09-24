@@ -13,10 +13,10 @@ around half a second for the average document.
 
 But this step is by far the most expensive step in a whole chain of
 transformation steps: first `mato` reads the input file, and creates a abstract
-syntaxt tree from it. That tree is being processed several times and then
+syntax tree from it. That tree is being processed several times and then
 rendered into `groff` input format. After that `groff` takes over. It is itself
 built in a similar way as a compiler, it has a front-end doing the parsing and
-a backend, doing the ouput generation. These backends are called _devices_ in
+a backend, doing the outputput generation. These backends are called _devices_ in
 `groff` parlance.
 
 One such device, I use heavily is the PDF device, implemented by `gropdf.pl`. As
@@ -61,7 +61,7 @@ that out. That was easily done, by letting main choose the writer and change
 the interface of `PdfDocument.print` to accept a that `writer: anytype`. This
 is what `zig` thinks of as templates.
 
-The next challgenge might be the object model and hierarchy, or putting more
+The next challenge might be the object model and hierarchy, or putting more
 text into the implementation. I've looked at a minimal grout output:
 
 ```
@@ -85,6 +85,25 @@ tcontains
 ...
 ```
 So, it should be fairly easy to write a reading loop interpreting this:
-Text, or words are being introduced by `t` and interword spaces with
+Text, or words are being introduced by `t` and inter-word spaces with
 `wh`, in the first go I could ignore all the rest and I would have a
 very simple pdf device!
+
+### Some Iterations later
+
+%Turns out, I had to refactor the whole design quite a bit: Firstly, I gave up
+on the embedded `PdfObject`. That approach seemed simply too awkward to use. A
+lot of duplication and keeping state in sync was the consequence. The purpose
+of this object was the iterability across all objects alike. I ended up doing
+this differently: I created an interface, which all objects implement, but in
+another way, than I would do this in other languages:
+
+The interface is a tagged union, which dispatches to different implementations,
+based on which union type is at hand. This seems to be a best-practise in the
+`zig` community it seems (TODO: ref).
+
+I actually thought rather long and rather hard about this problem. We first have
+the concern of numbering all pdf objects. I think, addressing only this would
+not motivate an object oriented approach. But in addition to that, I want to
+iterate over all objects and call a method on them, I called it `print()`, but
+it should be called `write()` probably.
