@@ -5,18 +5,14 @@
 .PT_SIZE 11
 .START
 .PP
-This file contains only two
-paragraphs of text. It can be
-used to test verify some
-formatting properties. For
-some reason, the next PP command
-has no effect.
+This file contains only two paragraphs of text. It can be used to verify some
+groff formatting properties. groff positions and alignes lines of text nicely.
 .PP
-This is the second paragraph.
-It contains a few sentences.
-Use mato to inspect, what
-groff source code results.
+This is the second paragraph. It contains a few sentences. Use mato to inspect,
+what groff source code results.
 .PP
-This is a third paragraph.
-It follows, that the first
-sentence above is a lie.
+This is a third paragraph. It follows, that the first sentence above is a lie.
+Let's make this one a bit longer, so that we can see, if we do not accumulate
+errors along the text. I am excited to see what this will look like. I hope the
+result will look good and will be set beautifully. I just noticed a strange
+horizontal alignment issue, which vanished, when I corrected a spelling error.
