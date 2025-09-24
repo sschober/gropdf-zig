@@ -15,19 +15,19 @@ pub fn main() !void {
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
     const stderr = &stderr_writer.interface;
 
-    var doc = try pdf.Document.init();
-    // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
-    // TODO add font support
-    const fontNumTi = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
-
-    // read loop to parse and dispatch groff out input
     var stdin_buffer: [4096]u8 = undefined;
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
     var reader = &stdin_reader.interface;
+
+    var doc: ?pdf.Document = null;
+    // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
+    // TODO add font support
+    var fontNumTi: ?usize = null;
     var lineNum: usize = 0;
     // we use optionals here, as zig does not allow null pointers
     var curPage: ?*pdf.Page = null;
     var curTextObject: ?*pdf.TextObject = null;
+    // read loop to parse and dispatch groff out input
     while (reader.takeDelimiterExclusive('\n')) |line| {
         if (line.len == 0) {
             break;
@@ -41,12 +41,12 @@ pub fn main() !void {
         const cmd = std.meta.stringToEnum(groff.Out, cmdStr).?;
         switch (cmd) {
             .p => {
-                curPage = try doc.addPage();
+                curPage = try doc.?.addPage();
                 curTextObject = curPage.?.contents.textObject;
             },
             .f => {
-                try doc.addFontRefTo(curPage.?, fontNumTi);
-                try curTextObject.?.selectFont(fontNumTi, 12);
+                try doc.?.addFontRefTo(curPage.?, fontNumTi.?);
+                try curTextObject.?.selectFont(fontNumTi.?, 12);
             },
             .x => {
                 // x X papersize
@@ -54,6 +54,12 @@ pub fn main() !void {
                     var it = std.mem.splitScalar(u8, line[2..], ' ');
                     const subCmd = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
                     switch (subCmd) {
+                        .init => {
+                            doc = try pdf.Document.init();
+                        },
+                        .font => {
+                            fontNumTi = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
+                        },
                         .T => {
                             // TODO x T
                         },
@@ -98,7 +104,7 @@ pub fn main() !void {
             },
             .s => {
                 const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
-                try curTextObject.?.selectFont(fontNumTi, fontSize / pdf.UNITSCALE);
+                try curTextObject.?.selectFont(fontNumTi.?, fontSize / pdf.UNITSCALE);
             },
             .t => {
                 try curTextObject.?.addWord(line[1..]);
@@ -141,6 +147,6 @@ pub fn main() !void {
         }
         try stdout.flush();
     } else |_| {}
-    try doc.print(stdout);
+    try doc.?.print(stdout);
     try stdout.flush();
 }
