@@ -6,9 +6,9 @@ if I could implement a reasonable subset of `groff_out(5)`.
 
 At the moment, we implement a small subset of the `grout` language only:
 
-* We support only a single font, "Time New Roman", as that can be referenced very
-easily in PDF, without the need to embedd it.
-* No drawing commands are intepreted.
+* We support only a single font, "Times New Roman", as that can be referenced very
+easily in PDF, without the need to embed it.
+* No drawing commands are interpreted.
 
 The resulting PDF has some, let's call them inefficiencies. A lot of similar commands
 are issued in sequence, which could be compacted. As a lot of this is already present
@@ -59,4 +59,4 @@ Executed in   17.63 millis    fish           external
    sys time    6.84 millis    1.28 millis    5.56 millis
 ```
 
-`17.63ms` vs about `700ms` with the perl implementation is looking good.
+`17.63ms` vs about `700ms` with the `perl` implementation is looking good.
