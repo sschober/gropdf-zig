@@ -46,17 +46,25 @@ and inspect it, using any PDF viewer. On mac os this might be:
 $ open sample-out.pdf
 ```
 
+### Pipelines
+
+You can also avoid the intermediate file and issue a pipeline command:
+
+```bash
+groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
+```
+
+
 ## Performance
 
 Currently, the performance looks promising:
 
 ```bash
-$ time ./zig-out/bin/gropdf_zig < input.grout > sample-out.pdf
-...
-________________________________________________________
-Executed in   17.63 millis    fish           external
-   usr time    7.26 millis    0.14 millis    7.11 millis
-   sys time    6.84 millis    1.28 millis    5.56 millis
+```bash
+$ termgraph measures.lst 
+
+gropdf    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
+gropdf_zig: ▇▇▇▇▇▇▇▇▇▇▇ 24.00
 ```
 
-`17.63ms` vs about `700ms` with the `perl` implementation is looking good.
+Seems like a factor of `4` quicker. I would have hoped for more actually.
