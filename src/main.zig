@@ -64,7 +64,7 @@ pub fn main() !u8 {
                             const arg = it.next().?;
                             const res = try std.fmt.parseUnsigned(usize, arg, 10);
                             const unitsize = res / 72;
-                            try stderr.print("setting unit scale to {d}", .{unitsize});
+                            try stderr.print("setting unit scale to {d}\n", .{unitsize});
                             pdf.UNITSCALE = unitsize;
                         },
                         .T => {
@@ -85,7 +85,7 @@ pub fn main() !u8 {
                                         var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
                                         const zX = itZSizes.next().?;
                                         const zY = itZSizes.next().?;
-                                        try stderr.print("media box {s} {s}\n", .{ zX, zY });
+                                        // try stderr.print("media box {s} {s}\n", .{ zX, zY });
                                         if (zX.len > 3 and zX[zX.len - 1] == 'z') {
                                             const x = try std.fmt.parseUnsigned(usize, zX[0 .. zX.len - 1], 10);
                                             curPage.?.x = x / pdf.UNITSCALE;
@@ -136,7 +136,7 @@ pub fn main() !u8 {
                 // V151452
                 const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
                 const v = v_z / pdf.UNITSCALE;
-                try stderr.print("V {d} => {d}\n", .{ v_z, v });
+                //try stderr.print("V {d} => {d}\n", .{ v_z, v });
                 if (v <= curPage.?.y) {
                     curTextObject.?.setF(curPage.?.y - v);
                 }
