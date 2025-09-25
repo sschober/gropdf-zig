@@ -62,8 +62,18 @@ Currently, the performance looks promising:
 ```bash
 $ termgraph measures.lst
 
-gropdf    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
-gropdf_zig: ▇▇▇▇▇▇▇▇▇▇▇ 24.00
+gropdf.pl     : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
+gropdf_zig    : ▇▇▇▇▇▇▇▇▇▇▇ 24.00
+gropdf_zig_rel: ▏ 2.00 
 ```
 
-Seems like a factor of `4` quicker. I would have hoped for more actually.
+Seems like a factor of `4` quicker for debug builds and a factor of over `50`
+for release builds!
+
+The release binary is only `41k` on linux, which I find quite impressive:
+
+```bash
+$ ls zig-out/bin/
+Permissions Size User Date Modified Name
+.rwxr-xr-x   41k sven 25 Sep 06:13  󰡯 gropdf_zig
+```
