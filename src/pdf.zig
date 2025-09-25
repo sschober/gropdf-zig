@@ -134,14 +134,6 @@ test "FixPoint" {
     try expect(fp1.fraction == 333);
 }
 
-pub const zPosition = struct {
-    v: usize = 0,
-    pub fn toUserSpace(self: zPosition) FixPoint {
-        // return FixPoint{ .n = self.v / self.unitsize, .d = self.v % self.unitsize };
-        return FixPoint.from(self.v, UNITSCALE);
-    }
-};
-
 /// pdf text object api - internally, it uses an array of lines
 pub const TextObject = struct {
     curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
@@ -149,7 +141,7 @@ pub const TextObject = struct {
     /// x coordinate, actually, but as pdf does matrix multiplication, we call it `e`
     e: FixPoint = FixPoint{},
     /// y coordinate, actually, but as pdf does matrix multiplication, we call it `f`
-    f: usize = 0,
+    f: FixPoint = FixPoint{},
     /// inter-word whitespace
     w: FixPoint = FixPoint{},
     /// initialze a new text object and its members
@@ -164,17 +156,16 @@ pub const TextObject = struct {
     }
     /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {s} {d} Tm", .{ try self.e.toString(), self.f }));
+        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {s} {s} Tm", .{ try self.e.toString(), try self.f.toString() }));
     }
     /// set `e` position - aka x coordinate - also issues a Tm command
-    pub fn setE(self: *TextObject, h: zPosition) !void {
+    pub fn setE(self: *TextObject, h: FixPoint) !void {
         try self.newLine();
-        self.e = h.toUserSpace();
+        self.e = h;
         try self.flushPos();
     }
     /// set `f` position - aka y coordinate
-    // TODO make `f` a `zPosition`
-    pub fn setF(self: *TextObject, f: usize) void {
+    pub fn setF(self: *TextObject, f: FixPoint) void {
         self.f = f;
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {

@@ -4,7 +4,13 @@ const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
 
-/// reads groff_out(5) and produces PDF 1.1
+/// helper function translating a groff z position coordinate into a fix point
+/// numer scaled by the pdf unit scale
+fn fixPointFromZPos(zp: groff.zPosition) pdf.FixPoint {
+    return pdf.FixPoint.from(zp.v, pdf.UNITSCALE);
+}
+
+/// reads groff output (groff_out(5)) and produces a PDF 1.1 compatible file
 /// reads from stdin and writes to stdout, takes no arguments ATM
 pub fn main() !u8 {
     var stdout_buffer: [4096]u8 = undefined;
@@ -84,6 +90,7 @@ pub fn main() !u8 {
                                     if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
                                         var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
                                         const zX = itZSizes.next().?;
+                                        //const zPosX = try pdf.zPosition.fromString(zX);
                                         const zY = itZSizes.next().?;
                                         // try stderr.print("media box {s} {s}\n", .{ zX, zY });
                                         if (zX.len > 3 and zX[zX.len - 1] == 'z') {
@@ -134,16 +141,16 @@ pub fn main() !u8 {
             .V => {
                 // vertical absolute positioning
                 // V151452
-                const v_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                const v = v_z / pdf.UNITSCALE;
-                //try stderr.print("V {d} => {d}\n", .{ v_z, v });
-                if (v <= curPage.?.y) {
-                    curTextObject.?.setF(curPage.?.y - v);
+                const v_z = try groff.zPosition.fromString(line[1..]);
+                var v = fixPointFromZPos(v_z);
+                if (v.integer <= curPage.?.y) {
+                    v.integer = curPage.?.y - v.integer;
+                    curTextObject.?.setF(v);
                 }
             },
             .h => {
                 // we ignore `h` at the moment, as PDF already increases the position with each glyph
-                // and we replace C glyphs with concret chars.
+                // and we replace C glyphs with concrete chars.
             },
             .v => {
                 // we ignore `v` as it seems the absolute positioning commands are enough
@@ -152,8 +159,8 @@ pub fn main() !u8 {
                 // horizontal absolute positioning
                 // H72000
                 // H97000
-                const h_z = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                try curTextObject.?.setE(pdf.zPosition{ .v = h_z });
+                const h_z = try groff.zPosition.fromString(line[1..]);
+                try curTextObject.?.setE(fixPointFromZPos(h_z));
             },
             else => {
                 try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });

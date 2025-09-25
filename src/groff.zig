@@ -1,3 +1,6 @@
+const std = @import("std");
+
+const String = []const u8;
 /// groff out language elements - all single characters, some take
 pub const Out = enum {
     /// device control command - see XSubCommand
@@ -43,4 +46,18 @@ pub const XSubCommand = enum {
     X,
     trailer,
     stop,
+};
+
+/// type for z-position of grout
+pub const zPosition = struct {
+    v: usize = 0,
+    pub fn fromString(input: String) !zPosition {
+        var result = zPosition{};
+        if (input.len > 3 and input[input.len - 1] == 'z') {
+            result.v = try std.fmt.parseUnsigned(usize, input[0 .. input.len - 1], 10);
+        } else {
+            result.v = try std.fmt.parseUnsigned(usize, input[0..], 10);
+        }
+        return result;
+    }
 };
