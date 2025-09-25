@@ -83,24 +83,24 @@ pub fn main() !u8 {
                         .X => {
                             // x X papersize=421000z,595000z
                             const arg = it.next().?;
-                            // try stderr.print("x X {s}\n", .{arg});
                             if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
                                 if (0 == idxPapersize) {
                                     // we found a `papersize` argument
                                     if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
                                         var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
                                         const zX = itZSizes.next().?;
-                                        //const zPosX = try pdf.zPosition.fromString(zX);
-                                        const zY = itZSizes.next().?;
-                                        // try stderr.print("media box {s} {s}\n", .{ zX, zY });
-                                        if (zX.len > 3 and zX[zX.len - 1] == 'z') {
-                                            const x = try std.fmt.parseUnsigned(usize, zX[0 .. zX.len - 1], 10);
-                                            curPage.?.x = x / pdf.UNITSCALE;
+                                        const zPosX = try groff.zPosition.fromString(zX);
+                                        const zPosXScaled = fixPointFromZPos(zPosX);
+                                        if (zPosXScaled.integer != curPage.?.x) {
+                                            try stderr.print("setting x width from {d} to {d}\n", .{ curPage.?.x, zPosXScaled.integer });
+                                            curPage.?.x = zPosXScaled.integer;
                                         }
-
-                                        if (zY.len > 2 and zY[zY.len - 1] == 'z') {
-                                            const y = try std.fmt.parseUnsigned(usize, zY[0 .. zY.len - 1], 10);
-                                            curPage.?.y = y / pdf.UNITSCALE;
+                                        const zY = itZSizes.next().?;
+                                        const zPosY = try groff.zPosition.fromString(zY);
+                                        const zPosYScaled = fixPointFromZPos(zPosY);
+                                        if (zPosYScaled.integer != curPage.?.y) {
+                                            try stderr.print("setting y width from {d} to {d}\n", .{ curPage.?.y, zPosYScaled.integer });
+                                            curPage.?.y = zPosYScaled.integer;
                                         }
                                     }
                                 } else {
@@ -130,7 +130,6 @@ pub fn main() !u8 {
             .w => {
                 if (line[1] == 'h') {
                     const h = try std.fmt.parseInt(usize, line[2..], 10);
-                    // try stderr.print("h: {d}\n", .{h});
                     try curTextObject.?.setInterwordSpace(h);
                     try curTextObject.?.addWord(" ");
                 }
