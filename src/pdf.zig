@@ -3,9 +3,9 @@
 //! implements PDF version 1.1 as defined in [Adobe PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)
 //! (pdfref17)
 const std = @import("std");
-var gpa = std.heap.DebugAllocator(.{}){};
-const allocator = gpa.allocator();
 
+/// alias to shorten usages below
+const Allocator = std.mem.Allocator;
 const String = []const u8;
 const ArrayList = std.array_list.Managed;
 
@@ -49,12 +49,13 @@ pub const StandardFonts = enum {
 /// root node of a tree of pages; contains no content itself, but only points
 /// to 'kids' objects of type `Page`
 pub const Pages = struct {
+    allocator: Allocator,
     objNum: usize,
     kids: ArrayList(*Page),
 
-    pub fn init(n: usize) !*Pages {
+    pub fn init(allocator: Allocator, n: usize) !*Pages {
         const result = try allocator.create(Pages);
-        result.* = Pages{ .objNum = n, .kids = ArrayList(*Page).init(allocator) };
+        result.* = Pages{ .allocator = allocator, .objNum = n, .kids = ArrayList(*Page).init(allocator) };
         return result;
     }
 
@@ -76,14 +77,14 @@ pub const Pages = struct {
     }
 
     fn addPage(self: *Pages, n: usize, c: *Stream) !*Page {
-        const res = try allocator.create(Page);
-        res.* = Page.init(n, self.objNum, c);
+        const res = try self.allocator.create(Page);
+        res.* = Page.init(self.allocator, n, self.objNum, c);
         try self.kids.append(res);
         return res;
     }
 
     pub fn pdfObj(self: *Pages) !*Object {
-        const res = try allocator.create(Object);
+        const res = try self.allocator.create(Object);
         res.* = Object{ .pages = self };
         return res;
     }
@@ -95,7 +96,7 @@ pub const Pages = struct {
 pub const FixPoint = struct {
     integer: usize = 0,
     fraction: usize = 0,
-    pub fn toString(self: FixPoint) !String {
+    pub fn toString(self: FixPoint, allocator: Allocator) !String {
         var res = ArrayList(u8).init(allocator);
         try res.writer().print("{d}.{d}", .{ self.integer, self.fraction });
         return res.items;
@@ -136,8 +137,9 @@ test "FixPoint" {
 
 /// pdf text object api - internally, it uses an array of lines
 pub const TextObject = struct {
-    curLine: ArrayList(u8) = ArrayList(u8).init(allocator),
-    lines: ArrayList(String) = ArrayList(String).init(allocator),
+    allocator: Allocator,
+    curLine: ArrayList(u8),
+    lines: ArrayList(String),
     /// x coordinate, actually, but as pdf does matrix multiplication, we call it `e`
     e: FixPoint = FixPoint{},
     /// y coordinate, actually, but as pdf does matrix multiplication, we call it `f`
@@ -145,18 +147,22 @@ pub const TextObject = struct {
     /// inter-word whitespace
     w: FixPoint = FixPoint{},
     /// initialze a new text object and its members
-    pub fn init() !*TextObject {
+    pub fn init(allocator: Allocator) !*TextObject {
         const res = try allocator.create(TextObject);
-        res.* = TextObject{};
+        res.* = TextObject{
+            .allocator = allocator,
+            .curLine = ArrayList(u8).init(allocator),
+            .lines = ArrayList(String).init(allocator),
+        };
         return res;
     }
     /// issue Tf command
     pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
     }
     /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "1 0 0 1 {s} {s} Tm", .{ try self.e.toString(), try self.f.toString() }));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "1 0 0 1 {s} {s} Tm", .{ try self.e.toString(self.allocator), try self.f.toString(self.allocator) }));
     }
     /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: FixPoint) !void {
@@ -169,33 +175,33 @@ pub const TextObject = struct {
         self.f = f;
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "{d} TL", .{l}));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} TL", .{l}));
     }
     pub fn setInterwordSpace(self: *TextObject, h: usize) !void {
         // TODO read space_width from font
         const space_width = 2765;
         const delta = @min(h, space_width);
         self.w = FixPoint.from(h - delta, UNITSCALE);
-        try self.lines.append(try std.fmt.allocPrint(allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
     }
     pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "{d} 0 Td", .{h}));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} 0 Td", .{h}));
     }
     pub fn addVerticalSpace(self: *TextObject, v: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "0 {d} Td", .{v}));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "0 {d} Td", .{v}));
     }
     pub fn addWord(self: *TextObject, s: String) !void {
         try self.curLine.appendSlice(s);
     }
     pub fn addText(self: *TextObject, s: String) !void {
-        try self.lines.append(try std.fmt.allocPrint(allocator, "({s}) Tj", .{s}));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "({s}) Tj", .{s}));
     }
 
     pub fn newLine(self: *TextObject) !void {
         if (self.curLine.items.len > 0) {
             // try self.flushPos();
             try self.addText(self.curLine.items);
-            self.curLine = ArrayList(u8).init(allocator);
+            self.curLine = ArrayList(u8).init(self.allocator);
         }
     }
 
@@ -210,16 +216,17 @@ pub const TextObject = struct {
 
 /// contains the actual content of pages, e.g., text objects (BT..ET)
 pub const Stream = struct {
+    allocator: Allocator,
     objNum: usize,
     textObject: *TextObject,
 
-    pub fn init(n: usize) !*Stream {
+    pub fn init(allocator: Allocator, n: usize) !*Stream {
         const res = try allocator.create(Stream);
-        res.* = Stream{ .objNum = n, .textObject = try TextObject.init() };
+        res.* = Stream{ .allocator = allocator, .objNum = n, .textObject = try TextObject.init(allocator) };
         return res;
     }
     pub fn write(self: Stream, writer: anytype) !void {
-        var objBytes = ArrayList(u8).init(allocator);
+        var objBytes = ArrayList(u8).init(self.allocator);
         try self.textObject.write(objBytes.writer());
         const stream = objBytes.items;
         try writer.print(
@@ -233,7 +240,7 @@ pub const Stream = struct {
         , .{ stream.len, stream });
     }
     pub fn pdfObj(self: *Stream) !*Object {
-        const res = try allocator.create(Object);
+        const res = try self.allocator.create(Object);
         res.* = Object{ .stream = self };
         return res;
     }
@@ -242,13 +249,14 @@ pub const Stream = struct {
 /// declares fonts in pdf documents; is referenced in resource dictionaries
 /// in pages
 pub const Font = struct {
+    allocator: Allocator,
     objNum: usize,
     /// fonts are numbered in a document; the numbers are managed and assign in Document
     fontNum: usize,
     fontDef: String,
-    pub fn init(n: usize, l: usize, f: String) !*Font {
+    pub fn init(allocator: Allocator, n: usize, l: usize, f: String) !*Font {
         const res = try allocator.create(Font);
-        res.* = Font{ .objNum = n, .fontNum = l, .fontDef = f };
+        res.* = Font{ .allocator = allocator, .objNum = n, .fontNum = l, .fontDef = f };
         return res;
     }
     pub fn write(self: Font, writer: anytype) !void {
@@ -261,7 +269,7 @@ pub const Font = struct {
         , .{self.fontDef});
     }
     pub fn pdfObj(self: *Font) !*Object {
-        const res = try allocator.create(Object);
+        const res = try self.allocator.create(Object);
         res.* = Object{ .font = self };
         return res;
     }
@@ -270,6 +278,7 @@ pub const Font = struct {
 /// envelope around page content; defines media box, font references and content
 /// references
 pub const Page = struct {
+    allocator: Allocator,
     objNum: usize,
     parentNum: usize,
     /// a stream object encapsulates the actual page contents, e.g., text objects
@@ -279,11 +288,11 @@ pub const Page = struct {
     resources: ArrayList(usize),
     x: usize = 612,
     y: usize = 792,
-    pub fn init(n: usize, p: usize, c: *Stream) Page {
-        return Page{ .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
+    pub fn init(allocator: Allocator, n: usize, p: usize, c: *Stream) Page {
+        return Page{ .allocator = allocator, .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
     }
     pub fn resString(self: Page) !String {
-        var res = ArrayList(u8).init(allocator);
+        var res = ArrayList(u8).init(self.allocator);
         try res.writer().print("<<\n", .{});
         for (self.resources.items, 0..) |item, i| {
             try res.writer().print("/F{d} {d} 0 R\n", .{ i, item });
@@ -307,7 +316,7 @@ pub const Page = struct {
         , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
-        const res = try allocator.create(Object);
+        const res = try self.allocator.create(Object);
         res.* = Object{ .page = self };
         return res;
     }
@@ -315,11 +324,13 @@ pub const Page = struct {
 
 /// references the page tree root node; no other purpose
 const Catalog = struct {
+    allocator: Allocator,
     objNum: usize,
     pages: String,
-    pub fn init(n: usize) !*Catalog {
+
+    pub fn init(allocator: Allocator, n: usize) !*Catalog {
         const res = try allocator.create(Catalog);
-        res.* = Catalog{ .objNum = n, .pages = "1 0 R" };
+        res.* = Catalog{ .allocator = allocator, .objNum = n, .pages = "1 0 R" };
         return res;
     }
     fn write(self: Catalog, writer: anytype) !void {
@@ -332,7 +343,7 @@ const Catalog = struct {
         , .{self.pages});
     }
     pub fn pdfObj(self: *Catalog) !*Object {
-        const res = try allocator.create(Object);
+        const res = try self.allocator.create(Object);
         res.* = Object{ .catalog = self };
         return res;
     }
@@ -364,6 +375,7 @@ pub const Object = union(enum) {
 /// pdf document object - main interaction point, use this to add fonts, pages
 /// and print the document.
 pub const Document = struct {
+    allocator: Allocator,
     /// linear sequence of objects, that together form the document
     objs: ArrayList(*Object),
     fonts: ArrayList(*Font),
@@ -377,8 +389,14 @@ pub const Document = struct {
     }
 
     /// initialze new document - starts out without fonts or pages
-    pub fn init() !Document {
-        var self = Document{ .objs = ArrayList(*Object).init(allocator), .pages = try Pages.init(1), .catalog = try Catalog.init(2), .fonts = ArrayList(*Font).init((allocator)) };
+    pub fn init(allocator: Allocator) !Document {
+        var self = Document{
+            .allocator = allocator, //
+            .objs = ArrayList(*Object).init(allocator), //
+            .pages = try Pages.init(allocator, 1), //
+            .catalog = try Catalog.init(allocator, 2), //
+            .fonts = ArrayList(*Font).init((allocator)),
+        };
         try self.addObj(try self.pages.pdfObj());
         try self.addObj(try self.catalog.pdfObj());
         return self;
@@ -394,7 +412,7 @@ pub const Document = struct {
     pub fn addFont(self: *Document, f: String) !usize {
         const objIdx = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
-        const font = try Font.init(objIdx, self.fonts.items.len, f);
+        const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
         return fontNum;
@@ -409,7 +427,7 @@ pub const Document = struct {
     /// add a new and empty page to the document and return a pointer to it
     pub fn addPage(self: *Document) !*Page {
         const objIdx = self.objs.items.len + 1;
-        const stream = try Stream.init(objIdx + 1);
+        const stream = try Stream.init(self.allocator, objIdx + 1);
         const page = try self.pages.addPage(objIdx, stream);
         try self.addObj(try page.pdfObj());
         try self.addObj(try stream.pdfObj());
@@ -418,7 +436,7 @@ pub const Document = struct {
 
     pub fn print(self: Document, writer: anytype) !void {
         var byteCount: usize = 0;
-        var objIndices = ArrayList(usize).init(allocator);
+        var objIndices = ArrayList(usize).init(self.allocator);
 
         // header
         try writer.print("{s}", .{PDF_1_1_HEADER});
@@ -427,9 +445,9 @@ pub const Document = struct {
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
-            var objBytes = ArrayList(u8).init(allocator);
+            var objBytes = ArrayList(u8).init(self.allocator);
             try obj.write(objBytes.writer());
-            const objStr = try std.fmt.allocPrint(allocator,
+            const objStr = try std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
                 \\{s}endobj
                 \\

@@ -13,6 +13,9 @@ fn fixPointFromZPos(zp: groff.zPosition) pdf.FixPoint {
 /// reads groff output (groff_out(5)) and produces a PDF 1.1 compatible file
 /// reads from stdin and writes to stdout, takes no arguments ATM
 pub fn main() !u8 {
+    var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer allocator.deinit();
+
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
@@ -61,7 +64,7 @@ pub fn main() !u8 {
                     const subCmd = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
                     switch (subCmd) {
                         .init => {
-                            doc = try pdf.Document.init();
+                            doc = try pdf.Document.init(allocator.allocator());
                         },
                         .font => {
                             fontNumTi = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
