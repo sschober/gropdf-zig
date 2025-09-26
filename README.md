@@ -1,8 +1,32 @@
-# A groff PDF device in zig
+# A groff PDF device written in zig
 
-Motivated by the approachability of `gropdf.pl` and the PDF spec,
-or to be exact, adobe's [pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf), I started this little experiment to see
+The original UNIX typesetting software roff has a GNU flavor called `groff`,
+which you will very likely have installed on your computer if you use MacOS, a
+Linux distribution, or Windows with MinGW or WSL. It is used today mainly to typeset
+man pages in the terminal, but actually it's much more powerful. Using macro
+packages like, `ms` or `mom`, you can produce beautifully typeset documents in
+`dvi`, `ps` or `pdf` format.
+
+To produce the mentioned output formats `groff` uses so called devices. These
+devices encapsulate the implementation details for producing a format and
+decouple this logic from the rest of `groff`'s functionality. The front-end
+talks to the device in a language called `groff_out(5)` (`grout` for short).
+
+I was happily using the PDF output device, `gropdf.pl` for quite some time now,
+but its implementation language `perl` always gave my an itch. Not, that I
+don't like `perl` - I've written my fair share in it in the past - it's just
+not the first language I would think of, when thinking about speed.
+
+Motivated by the approachability of `gropdf.pl` (
+[sources](https://cgit.git.savannah.gnu.org/cgit/groff.git/tree/src/devices/gropdf/gropdf.pl), 
+[man page](https://man7.org/linux/man-pages/man1/gropdf.1.html)
+and the PDF spec, or to be exact, adobe's 
+[pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf), I started this little experiment to see
 if I could implement a reasonable subset of `groff_out(5)`.
+
+> [!WARNING]
+> This is **very experimental** software. No guarantee is provided, that it will
+> produce sensible output, will not crash and or stay stable in its behaviour.
 
 At the moment, we implement a small subset of the `grout` language only:
 
