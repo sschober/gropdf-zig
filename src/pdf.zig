@@ -96,10 +96,12 @@ pub const Pages = struct {
 pub const FixPoint = struct {
     integer: usize = 0,
     fraction: usize = 0,
-    pub fn toString(self: FixPoint, allocator: Allocator) !String {
-        var res = ArrayList(u8).init(allocator);
-        try res.writer().print("{d}.{d}", .{ self.integer, self.fraction });
-        return res.items;
+    /// custom format function to make this struct easily printable
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        try writer.print("{d}.{d}", .{ self.integer, self.fraction });
     }
     pub fn from(n: usize, d: usize) FixPoint {
         var result = FixPoint{};
@@ -162,7 +164,9 @@ pub const TextObject = struct {
     }
     /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "1 0 0 1 {s} {s} Tm", .{ try self.e.toString(self.allocator), try self.f.toString(self.allocator) }));
+        try self.lines.append( //
+            try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
+                .{ self.e, self.f }));
     }
     /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: FixPoint) !void {
