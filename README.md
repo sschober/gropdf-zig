@@ -101,3 +101,21 @@ $ ls zig-out/bin/
 Permissions Size User Date Modified Name
 .rwxr-xr-x   41k sven 25 Sep 06:13  󰡯 gropdf_zig
 ```
+
+### File Sizes
+
+Another interesting aspect of this are the respective file sizes involved in
+the translation process:
+
+```bash
+termgraph file-sizes.lst
+
+input.mom     : ▇▇▇▇▇▇▇▇▇ 769.00
+input.grout   : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 3.88 K
+sample-out.pdf: ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 2.66 K
+```
+
+We see here from an input of `769` bytes, we get a `3.8kb` grout file, which
+in turn results in a `2.6kb` PDF. So, PDF can be in fact even more compact than
+grout. But that's only the case, because we currently do not support font file
+embedding.
