@@ -125,9 +125,11 @@ pub const TextObject = struct {
     }
     /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
-        try self.lines.append( //
-            try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
-                .{ self.e, self.f }));
+        const newTm = try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
+            .{ self.e, self.f });
+        if (self.lines.items.len == 0 or !std.mem.eql(u8, self.lines.items[self.lines.items.len - 1], newTm)) {
+            try self.lines.append(newTm);
+        }
     }
     /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: FixPoint) !void {

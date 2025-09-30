@@ -29,7 +29,7 @@ endobj
 endobj
 4 0 obj
 <<
-/Length 1728
+/Length 1393
 >>
 stream
 BT
@@ -37,31 +37,18 @@ BT
 /F0 12. Tf
 /F0 10. Tf
 1 0 0 1 72.0 780.0 Tm
-1 0 0 1 72.0 780.0 Tm
 ( ) Tj
 1 0 0 1 74.5 780.0 Tm
 ( ) Tj
 1 0 0 1 72.0 768.0 Tm
-1 0 0 1 72.0 768.0 Tm
-1 0 0 1 72.0 768.0 Tm
-1 0 0 1 72.0 768.0 Tm
-1 0 0 1 72.0 756.0 Tm
 1 0 0 1 72.0 756.0 Tm
 1 0 0 1 72.0 740.0 Tm
 /F0 12. Tf
 1 0 0 1 72.0 740.0 Tm
-1 0 0 1 72.0 740.0 Tm
-1 0 0 1 72.0 610.0 Tm
-1 0 0 1 72.0 610.0 Tm
 1 0 0 1 72.0 610.0 Tm
 1 0 0 1 72.0 557.0 Tm
 /F0 11. Tf
 1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 509.484 Tm
 1 0 0 1 72.0 509.484 Tm
 0.72 Tw
 (This file contains only tw) Tj
@@ -86,7 +73,6 @@ BT
 1 0 0 1 210.27 477.968 Tm
 (fect.) Tj
 1 0 0 1 97.0 460.21 Tm
-1 0 0 1 97.0 460.21 Tm
 2.589 Tw
 2.588 Tw
 (This is the second paragraph. It contains a fe) Tj
@@ -97,7 +83,6 @@ BT
 (tences. Use mato to inspect, what grof) Tj
 1 0 0 1 239.75 444.452 Tm
 (f source code results.) Tj
-1 0 0 1 97.0 428.694 Tm
 1 0 0 1 97.0 428.694 Tm
 1.408 Tw
 (This is a third paragraph. It follo) Tj
@@ -135,11 +120,11 @@ xref
 0000000073 00000 n
 0000000122 00000 n
 0000000248 00000 n
-0000002028 00000 n
+0000001693 00000 n
 trailer
 <<
 /Root 2 0 R
 /Size 6
 >>
 startxref
-2100
+1765
