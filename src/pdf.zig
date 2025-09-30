@@ -95,7 +95,9 @@ pub const Pages = struct {
     }
 };
 
-/// pdf text object api - internally, it uses an array of lines
+/// pdf text object api - acts like a buffer, saving commands in its state
+/// which are rendered out when the object ist formatted. internally, it uses
+/// an array of lines
 pub const TextObject = struct {
     allocator: Allocator,
     curLine: ArrayList(u8),
@@ -127,6 +129,8 @@ pub const TextObject = struct {
     pub fn flushPos(self: *TextObject) !void {
         const newTm = try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
             .{ self.e, self.f });
+        // only append new Tm command if the last line is not identical
+        // this case happens quite often with the grout input
         if (self.lines.items.len == 0 or !std.mem.eql(u8, self.lines.items[self.lines.items.len - 1], newTm)) {
             try self.lines.append(newTm);
         }

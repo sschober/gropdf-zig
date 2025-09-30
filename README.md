@@ -1,11 +1,11 @@
 # A groff PDF device written in zig
 
-The original UNIX typesetting software roff has a GNU flavor called `groff`,
-which you will very likely have installed on your computer if you use MacOS, a
-Linux distribution, or Windows with MinGW or WSL. It is used today mainly to typeset
-man pages in the terminal, but actually it's much more powerful. Using macro
-packages like, `ms` or `mom`, you can produce beautifully typeset documents in
-`dvi`, `ps` or `pdf` format.
+The original UNIX typesetting software `roff` (from 'runoff') has a GNU
+implementation called `groff`, which you will very likely have installed on
+your computer if you use MacOS, a Linux distribution, or Windows with MinGW or
+WSL. It is used today mainly to typeset man pages in the terminal, but actually
+it's much more powerful. Using macro packages like, `ms` or `mom`, you can
+produce beautifully typeset documents in `dvi`, `ps` or `pdf` format.
 
 To produce the mentioned output formats `groff` uses so called devices. These
 devices encapsulate the implementation details for producing a format and
@@ -112,10 +112,10 @@ termgraph file-sizes.lst
 
 input.mom     : ▇▇▇▇▇▇▇▇▇ 769.00
 input.grout   : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 3.88 K
-sample-out.pdf: ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 2.66 K
+sample-out.pdf: ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 1.94 K
 ```
 
 We see here from an input of `769` bytes, we get a `3.8kb` grout file, which
-in turn results in a `2.6kb` PDF. So, PDF can be in fact even more compact than
-grout. But that's only the case, because we currently do not support font file
-embedding.
+in turn results in a `1.94kb` PDF. So, PDF can be in fact even more compact than
+`grout`. But that's only the case, because we currently do not support font file
+embedding and rely on a system font.
