@@ -99,6 +99,9 @@ pub const Pages = struct {
 pub const TextObject = struct {
     allocator: Allocator,
     curLine: ArrayList(u8),
+    /// buffers the lines of this text object. they are filled line after line,
+    /// according to the grout output.
+    /// TODO text object: save commands instead of lines
     lines: ArrayList(String),
     /// x coordinate, actually, but as pdf does matrix multiplication, we call it `e`
     e: FixPoint = FixPoint{},
@@ -143,8 +146,11 @@ pub const TextObject = struct {
         // TODO read space_width from font
         const space_width = 2765;
         const delta = @min(h, space_width);
-        self.w = FixPoint.from(h - delta, UNITSCALE);
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
+        const newInterwordSpace = FixPoint.from(h - delta, UNITSCALE);
+        if (!std.meta.eql(newInterwordSpace, self.w)) {
+            self.w = FixPoint.from(h - delta, UNITSCALE);
+            try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
+        }
     }
     pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} 0 Td", .{h}));
