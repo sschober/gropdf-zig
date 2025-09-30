@@ -209,7 +209,10 @@ pub const TextObject = struct {
         }
     }
 
-    pub fn write(self: TextObject, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         try writer.print("BT\n", .{});
         for (self.lines.items) |line| {
             try writer.print("{s}\n", .{line});
@@ -230,9 +233,7 @@ pub const Stream = struct {
         return res;
     }
     pub fn write(self: Stream, writer: anytype) !void {
-        var objBytes = ArrayList(u8).init(self.allocator);
-        try self.textObject.write(objBytes.writer());
-        const stream = objBytes.items;
+        const stream = try std.fmt.allocPrint(self.allocator, "{f}", .{self.textObject});
         try writer.print(
             \\<<
             \\/Length {d}
