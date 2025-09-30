@@ -350,6 +350,7 @@ const Catalog = struct {
         res.* = Catalog{ .allocator = allocator, .objNum = n, .pages = "1 0 R" };
         return res;
     }
+
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -457,7 +458,10 @@ pub const Document = struct {
         return page;
     }
 
-    pub fn print(self: Document, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         var byteCount: usize = 0;
         var objIndices = ArrayList(usize).init(self.allocator);
 
@@ -467,13 +471,13 @@ pub const Document = struct {
 
         // objects
         for (self.objs.items) |obj| {
-            try objIndices.append(byteCount);
-            const objBytes = try std.fmt.allocPrint(self.allocator, "{f}", .{obj});
-            const objStr = try std.fmt.allocPrint(self.allocator,
+            objIndices.append(byteCount) catch {};
+            const objBytes = std.fmt.allocPrint(self.allocator, "{f}", .{obj}) catch "";
+            const objStr = std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
                 \\{s}endobj
                 \\
-            , .{ obj.objNum(), objBytes });
+            , .{ obj.objNum(), objBytes }) catch "";
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }

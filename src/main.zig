@@ -170,7 +170,7 @@ pub fn main() !u8 {
         }
         try stdout.flush();
     } else |_| {}
-    try doc.?.print(stdout);
+    try stdout.print("{f}", .{doc.?});
     try stdout.flush();
     return 0;
 }
