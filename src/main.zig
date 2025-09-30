@@ -3,11 +3,12 @@
 const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
+const FixPoint = @import("FixPoint.zig");
 
 /// helper function translating a groff z position coordinate into a fix point
 /// numer scaled by the pdf unit scale
-fn fixPointFromZPos(zp: groff.zPosition) pdf.FixPoint {
-    return pdf.FixPoint.from(zp.v, pdf.UNITSCALE);
+fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
+    return FixPoint.from(zp.v, pdf.UNITSCALE);
 }
 
 /// reads groff output (groff_out(5)) and produces a PDF 1.1 compatible file
