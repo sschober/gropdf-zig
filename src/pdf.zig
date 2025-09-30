@@ -59,7 +59,10 @@ pub const Pages = struct {
         return result;
     }
 
-    pub fn write(self: Pages, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         try writer.print(
             \\<<
             \\/Type /Pages
@@ -232,8 +235,11 @@ pub const Stream = struct {
         res.* = Stream{ .allocator = allocator, .objNum = n, .textObject = try TextObject.init(allocator) };
         return res;
     }
-    pub fn write(self: Stream, writer: anytype) !void {
-        const stream = try std.fmt.allocPrint(self.allocator, "{f}", .{self.textObject});
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        const stream = std.fmt.allocPrint(self.allocator, "{f}", .{self.textObject}) catch "";
         try writer.print(
             \\<<
             \\/Length {d}
@@ -264,7 +270,10 @@ pub const Font = struct {
         res.* = Font{ .allocator = allocator, .objNum = n, .fontNum = l, .fontDef = f };
         return res;
     }
-    pub fn write(self: Font, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         try writer.print(
             \\<<
             \\/Type /Font
@@ -305,7 +314,10 @@ pub const Page = struct {
         try res.writer().print(">>", .{});
         return res.items;
     }
-    pub fn write(self: Page, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         try writer.print(
             \\<<
             \\/Type /Page
@@ -318,7 +330,7 @@ pub const Page = struct {
             \\>>
             \\>>
             \\
-        , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
+        , .{ self.parentNum, self.contents.objNum, self.x, self.y, self.resString() catch "" });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try self.allocator.create(Object);
@@ -338,7 +350,10 @@ const Catalog = struct {
         res.* = Catalog{ .allocator = allocator, .objNum = n, .pages = "1 0 R" };
         return res;
     }
-    fn write(self: Catalog, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         try writer.print(
             \\<<
             \\/Type /Catalog
@@ -365,9 +380,12 @@ pub const Object = union(enum) {
     font: *Font,
     stream: *Stream,
 
-    pub fn write(self: Object, writer: anytype) !void {
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         switch (self) {
-            inline else => |impl| return impl.write(writer),
+            inline else => |impl| return impl.format(writer),
         }
     }
     pub fn objNum(self: Object) usize {
@@ -450,13 +468,12 @@ pub const Document = struct {
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
-            var objBytes = ArrayList(u8).init(self.allocator);
-            try obj.write(objBytes.writer());
+            const objBytes = try std.fmt.allocPrint(self.allocator, "{f}", .{obj});
             const objStr = try std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
                 \\{s}endobj
                 \\
-            , .{ obj.objNum(), objBytes.items });
+            , .{ obj.objNum(), objBytes });
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }
