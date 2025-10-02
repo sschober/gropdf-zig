@@ -29,7 +29,7 @@ endobj
 endobj
 4 0 obj
 <<
-/Length 1393
+/Length 2266
 >>
 stream
 BT
@@ -58,20 +58,22 @@ BT
 0.719 Tw
 (xt. It can be used) Tj
 1 0 0 1 72.0 493.726 Tm
-1.917 Tw
-1.918 Tw
-(to test v) Tj
-1 0 0 1 110.537 493.726 Tm
-(erify some formatting properties. F) Tj
-1 0 0 1 272.39 493.726 Tm
-(or some reason,) Tj
+0.171 Tw
+(to v) Tj
+1 0 0 1 88.829 493.726 Tm
+(erify some grof) Tj
+1 0 0 1 156.741 493.726 Tm
+0.172 Tw
+(f formatting properties. grof) Tj
+1 0 0 1 280.447 493.726 Tm
+(f positions and) Tj
 1 0 0 1 72.0 477.968 Tm
 0.0 Tw
-(the ne) Tj
-1 0 0 1 98.411 477.968 Tm
-(xt PP command has no ef) Tj
-1 0 0 1 210.27 477.968 Tm
-(fect.) Tj
+(alignes lines of te) Tj
+1 0 0 1 149.132 477.968 Tm
+(xt nicely) Tj
+1 0 0 1 186.609 477.968 Tm
+(.) Tj
 1 0 0 1 97.0 460.21 Tm
 2.589 Tw
 2.588 Tw
@@ -90,15 +92,53 @@ BT
 1.409 Tw
 (ws, that the first sen-) Tj
 1 0 0 1 72.0 412.936 Tm
-0.0 Tw
+0.912 Tw
 (tence abo) Tj
-1 0 0 1 113.679 412.936 Tm
+1 0 0 1 114.606 412.936 Tm
 (v) Tj
-1 0 0 1 119.14 412.936 Tm
-(e is a lie.) Tj
-1 0 0 1 72.0 400.936 Tm
+1 0 0 1 119.941 412.936 Tm
+0.911 Tw
+(e is a lie. Let') Tj
+1 0 0 1 183.224 412.936 Tm
+(s mak) Tj
+1 0 0 1 210.11 412.936 Tm
+(e this one a bit longer) Tj
+1 0 0 1 309.219 412.936 Tm
+(, so that) Tj
+1 0 0 1 72.0 395.178 Tm
+1.212 Tw
+1.213 Tw
+(we can see, if we do not accumulate errors along the te) Tj
+1 0 0 1 326.651 395.178 Tm
+(xt. I) Tj
+1 0 0 1 72.0 379.42 Tm
+1.396 Tw
+(am e) Tj
+1 0 0 1 94.322 379.42 Tm
+1.395 Tw
+(xcited to see what this will look lik) Tj
+1 0 0 1 258.395 379.42 Tm
+(e. I hope the result) Tj
+1 0 0 1 72.0 363.662 Tm
+2.34 Tw
+2.35 Tw
+(will look good and will be set beautifully) Tj
+1 0 0 1 266.824 363.662 Tm
+(. I just noticed a) Tj
+1 0 0 1 72.0 347.904 Tm
+1.882 Tw
+1.881 Tw
+(strange horizontal alignment issue, which v) Tj
+1 0 0 1 272.464 347.904 Tm
+(anished, when I) Tj
+1 0 0 1 72.0 330.146 Tm
+0.0 Tw
+(corrected a spelling error) Tj
+1 0 0 1 181.659 330.146 Tm
+(.) Tj
+1 0 0 1 72.0 318.146 Tm
 /F0 10. Tf
-1 0 0 1 72.0 400.936 Tm
+1 0 0 1 72.0 318.146 Tm
 /F0 11. Tf
 1 0 0 1 201.469 37.381 Tm
 (-1-) Tj
@@ -120,11 +160,11 @@ xref
 0000000073 00000 n
 0000000122 00000 n
 0000000248 00000 n
-0000001693 00000 n
+0000002566 00000 n
 trailer
 <<
 /Root 2 0 R
 /Size 6
 >>
 startxref
-1765
+2638
