@@ -1,4 +1,6 @@
 .DOCTYPE DEFAULT
+.TITLE "gropdf.zig Test"
+.AUTHOR "Sven Schober"
 .PRINTSTYLE TYPESET
 .PAGE 5.8i 9i 1i 1i .75i .75i
 .PAPER A5

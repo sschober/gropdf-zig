@@ -57,6 +57,7 @@ wh2500
 Dt 500 0
 n12000 0
 x X ps:exec [/PageMode /UseOutlines /DOCVIEW pdfmark
+x X ps:exec [/Author (Sven Schober,) /DOCINFO pdfmark
 V24000
 H72000
 V24000
@@ -114,19 +115,50 @@ H72000
 x X papersize=421000z,595000z
 n0 0
 x X ps:exec [/Dest /pdf:bm1 /View [/FitH 34242 u] /DEST pdfmark
-x X ps:exec [/Dest /pdf:bm1 /Title (\|) /Level 1 /OUT pdfmark
+x X ps:exec [/Dest /pdf:bm1 /Title (gropdf.zig Test\|) /Level 1 /OUT pdfmark
+x font 37 TB
+f37
+s14500
+V54000
+H164686
+tgr
+H178113
+topdf
+H206098
+t.zig
+wh3625
+tT
+H239405
+test
+n16242 0
+x font 39 TI
+f39
+s11000
+V70242
+H205308
+tby
+n16242 0
 V86484
+H180800
+tSven
+wh2750
+tSc
+H214537
+thober
+n16242 0
+V135210
 H72000
-V86484
+f5
+V135210
 H72000
 x X pdf: pagenumbering D . 1
 n16242 0
-V102726
+V151452
 H72000
 n16242 0
-V86484
+V135210
 H72000
-V86484
+V135210
 H72000
 x X ps: exec decornone
 tThis
@@ -161,7 +193,7 @@ tused
 wh2764
 tto
 n16242 0
-V102726
+V151452
 H72000
 tv
 H77335
@@ -185,7 +217,7 @@ tpositions
 wh5065
 tand
 n16242 0
-V118968
+V167694
 H72000
 talignes
 wh2750
@@ -201,9 +233,9 @@ tnicely
 H186609
 t.
 n16242 0
-V135210
+V183936
 H97000
-V135210
+V183936
 H97000
 x X ps: exec decornone
 tThis
@@ -228,7 +260,7 @@ tw
 wh2778
 tsentences.
 n16242 0
-V151452
+V200178
 H72000
 tUse
 wh2750
@@ -250,9 +282,9 @@ tcode
 wh2750
 tresults.
 n16242 0
-V167694
+V216420
 H97000
-V167694
+V216420
 H97000
 x X ps: exec decornone
 tThis
@@ -283,7 +315,7 @@ tsen
 Chy
 h3663
 n16242 0
-V183936
+V232662
 H72000
 ttence
 wh3938
@@ -323,7 +355,7 @@ tso
 wh3937
 tthat
 n16242 0
-V200178
+V248904
 H72000
 twe
 wh2898
@@ -355,7 +387,7 @@ tI
 wh2899
 tam
 n16242 0
-V216420
+V265146
 H72000
 te
 H76719
@@ -387,7 +419,7 @@ tresult
 wh4137
 twill
 n16242 0
-V232662
+V281388
 H72000
 tlook
 wh3776
@@ -415,7 +447,7 @@ ta
 wh3777
 tstrange
 n16242 0
-V248904
+V297630
 H72000
 thorizontal
 wh3825
@@ -435,7 +467,7 @@ tI
 wh3824
 tcorrected
 n16242 0
-V265146
+V313872
 H72000
 ta
 wh2750
@@ -446,10 +478,10 @@ H137989
 t.
 n16242 0
 x X pdf: marksuspend
-V277146
+V325872
 H72000
 s10000
-V277146
+V325872
 H72000
 x X ps: exec decornone
 n12000 0

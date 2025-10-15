@@ -30,9 +30,10 @@ pub fn main() !u8 {
     var reader = &stdin_reader.interface;
 
     var doc: ?pdf.Document = null;
-    // const fontNumHv = try doc.addStandardFont(pdf.StandardFonts.Helvetica);
-    // TODO add font support
-    var fontNumTi: ?usize = null;
+    // maps grout font numbers to pdf font numbers
+    var fontMap = std.AutoHashMap(usize, usize).init(allocator.allocator());
+    var curPdfFontNum: ?usize = null;
+    var curFontSize: ?usize = null;
     var lineNum: usize = 0;
     // we use optionals here, as zig does not allow null pointers
     var curPage: ?*pdf.Page = null;
@@ -56,8 +57,11 @@ pub fn main() !u8 {
                     curTextObject = curPage.?.contents.textObject;
                 },
                 .f => {
-                    try doc.?.addFontRefTo(curPage.?, fontNumTi.?);
-                    try curTextObject.?.selectFont(fontNumTi.?, 12);
+                    const fontNumStr = line[1..];
+                    const fontNum = try std.fmt.parseUnsigned(usize, fontNumStr, 10);
+                    curPdfFontNum = fontMap.get(fontNum);
+                    try doc.?.addFontRefTo(curPage.?, curPdfFontNum.?);
+                    try curTextObject.?.selectFont(curPdfFontNum.?, curFontSize orelse 11);
                 },
                 .x => {
                     // x X papersize
@@ -69,7 +73,19 @@ pub fn main() !u8 {
                                 doc = try pdf.Document.init(allocator.allocator());
                             },
                             .font => {
-                                fontNumTi = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
+                                const fontNumStr = it.next().?;
+                                const fontNum = try std.fmt.parseUnsigned(usize, fontNumStr, 10);
+                                const fontName = it.next().?;
+                                if (std.mem.eql(u8, "TR", fontName)) {
+                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
+                                    try fontMap.put(fontNum, pdfFontNum);
+                                } else if (std.mem.eql(u8, "TB", fontName)) {
+                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
+                                    try fontMap.put(fontNum, pdfFontNum);
+                                } else if (std.mem.eql(u8, "TI", fontName)) {
+                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
+                                    try fontMap.put(fontNum, pdfFontNum);
+                                }
                             },
                             .res => {
                                 const arg = it.next().?;
@@ -127,7 +143,8 @@ pub fn main() !u8 {
                 },
                 .s => {
                     const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
-                    try curTextObject.?.selectFont(fontNumTi.?, fontSize / pdf.UNITSCALE);
+                    curFontSize = fontSize / pdf.UNITSCALE;
+                    try curTextObject.?.selectFont(curPdfFontNum.?, fontSize / pdf.UNITSCALE);
                 },
                 .t => {
                     try curTextObject.?.addWord(line[1..]);

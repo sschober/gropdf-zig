@@ -42,6 +42,8 @@ pub const StandardFonts = enum {
     pub fn string(self: StandardFonts) String {
         switch (self) {
             .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1",
+            .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1",
+            .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1",
             .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1",
             else => return "",
         }
