@@ -34,7 +34,16 @@ pub fn from(n: usize, d: usize) Self {
     }
     return result;
 }
-
+pub fn subtractFrom(self: @This(), n: usize) Self {
+    var result = Self{};
+    result.integer = n - self.integer;
+    result.fraction = 0;
+    if (self.fraction > 0) {
+        result.fraction = 1000 - self.fraction;
+        result.integer -= 1;
+    }
+    return result;
+}
 const expect = std.testing.expect;
 test "FixPoint" {
     const fp = Self.from(15, 2);

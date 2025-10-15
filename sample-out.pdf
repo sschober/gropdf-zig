@@ -29,7 +29,7 @@ endobj
 endobj
 4 0 obj
 <<
-/Length 2266
+/Length 2282
 >>
 stream
 BT
@@ -49,98 +49,98 @@ BT
 1 0 0 1 72.0 557.0 Tm
 /F0 11. Tf
 1 0 0 1 72.0 557.0 Tm
-1 0 0 1 72.0 509.484 Tm
-0.72 Tw
+1 0 0 1 72.0 508.516 Tm
+1 0 0 1 72.0 492.274 Tm
+1 0 0 1 72.0 508.516 Tm
 (This file contains only tw) Tj
-1 0 0 1 186.667 509.484 Tm
+1 0 0 1 183.787 508.516 Tm
 (o paragraphs of te) Tj
-1 0 0 1 267.819 509.484 Tm
-0.719 Tw
-(xt. It can be used) Tj
-1 0 0 1 72.0 493.726 Tm
-0.171 Tw
-(to v) Tj
-1 0 0 1 88.829 493.726 Tm
+1 0 0 1 262.778 508.516 Tm
+(xt. It can be used to) Tj
+1 0 0 1 72.0 492.274 Tm
+(v) Tj
+1 0 0 1 77.335 492.274 Tm
+2.299 Tw
 (erify some grof) Tj
-1 0 0 1 156.741 493.726 Tm
-0.172 Tw
+1 0 0 1 149.503 492.274 Tm
+2.3 Tw
 (f formatting properties. grof) Tj
-1 0 0 1 280.447 493.726 Tm
+1 0 0 1 279.591 492.274 Tm
 (f positions and) Tj
-1 0 0 1 72.0 477.968 Tm
+1 0 0 1 72.0 476.32 Tm
 0.0 Tw
 (alignes lines of te) Tj
-1 0 0 1 149.132 477.968 Tm
+1 0 0 1 149.132 476.32 Tm
 (xt nicely) Tj
-1 0 0 1 186.609 477.968 Tm
+1 0 0 1 186.609 476.32 Tm
 (.) Tj
-1 0 0 1 97.0 460.21 Tm
-2.589 Tw
-2.588 Tw
+1 0 0 1 97.0 459.979 Tm
+0.14 Tw
+0.13 Tw
 (This is the second paragraph. It contains a fe) Tj
-1 0 0 1 313.979 460.21 Tm
-(w sen-) Tj
-1 0 0 1 72.0 444.452 Tm
+1 0 0 1 293.378 459.979 Tm
+(w sentences.) Tj
+1 0 0 1 72.0 443.548 Tm
 0.0 Tw
-(tences. Use mato to inspect, what grof) Tj
-1 0 0 1 239.75 444.452 Tm
+(Use mato to inspect, what grof) Tj
+1 0 0 1 206.761 443.548 Tm
 (f source code results.) Tj
-1 0 0 1 97.0 428.694 Tm
-1.408 Tw
+1 0 0 1 97.0 427.306 Tm
+1.748 Tw
 (This is a third paragraph. It follo) Tj
-1 0 0 1 248.549 428.694 Tm
-1.409 Tw
+1 0 0 1 250.589 427.306 Tm
+1.749 Tw
 (ws, that the first sen-) Tj
-1 0 0 1 72.0 412.936 Tm
-0.912 Tw
+1 0 0 1 72.0 411.64 Tm
+1.173 Tw
 (tence abo) Tj
-1 0 0 1 114.606 412.936 Tm
+1 0 0 1 114.867 411.64 Tm
 (v) Tj
-1 0 0 1 119.941 412.936 Tm
-0.911 Tw
+1 0 0 1 120.202 411.64 Tm
 (e is a lie. Let') Tj
-1 0 0 1 183.224 412.936 Tm
+1 0 0 1 184.53 411.64 Tm
 (s mak) Tj
-1 0 0 1 210.11 412.936 Tm
+1 0 0 1 211.579 411.64 Tm
 (e this one a bit longer) Tj
-1 0 0 1 309.219 412.936 Tm
+1 0 0 1 312.97 411.64 Tm
+1.172 Tw
 (, so that) Tj
-1 0 0 1 72.0 395.178 Tm
-1.212 Tw
-1.213 Tw
+1 0 0 1 72.0 394.822 Tm
+0.133 Tw
+0.134 Tw
 (we can see, if we do not accumulate errors along the te) Tj
-1 0 0 1 326.651 395.178 Tm
-(xt. I) Tj
-1 0 0 1 72.0 379.42 Tm
-1.396 Tw
-(am e) Tj
-1 0 0 1 94.322 379.42 Tm
-1.395 Tw
+1 0 0 1 314.789 394.822 Tm
+(xt. I am) Tj
+1 0 0 1 72.0 378.958 Tm
+(e) Tj
+1 0 0 1 76.719 378.958 Tm
+1.373 Tw
 (xcited to see what this will look lik) Tj
-1 0 0 1 258.395 379.42 Tm
-(e. I hope the result) Tj
-1 0 0 1 72.0 363.662 Tm
-2.34 Tw
-2.35 Tw
-(will look good and will be set beautifully) Tj
-1 0 0 1 266.824 363.662 Tm
-(. I just noticed a) Tj
-1 0 0 1 72.0 347.904 Tm
-1.882 Tw
-1.881 Tw
-(strange horizontal alignment issue, which v) Tj
-1 0 0 1 272.464 347.904 Tm
-(anished, when I) Tj
-1 0 0 1 72.0 330.146 Tm
+1 0 0 1 240.633 378.958 Tm
+1.372 Tw
+(e. I hope the result will) Tj
+1 0 0 1 72.0 362.338 Tm
+1.11 Tw
+1.12 Tw
+(look good and will be set beautifully) Tj
+1 0 0 1 238.771 362.338 Tm
+(. I just noticed a strange) Tj
+1 0 0 1 72.0 346.96 Tm
+1.6 Tw
+(horizontal alignment issue, which v) Tj
+1 0 0 1 232.764 346.96 Tm
+1.59 Tw
+(anished, when I corrected) Tj
+1 0 0 1 72.0 329.854 Tm
 0.0 Tw
-(corrected a spelling error) Tj
-1 0 0 1 181.659 330.146 Tm
+(a spelling error) Tj
+1 0 0 1 137.989 329.854 Tm
 (.) Tj
-1 0 0 1 72.0 318.146 Tm
+1 0 0 1 72.0 317.854 Tm
 /F0 10. Tf
-1 0 0 1 72.0 318.146 Tm
+1 0 0 1 72.0 317.854 Tm
 /F0 11. Tf
-1 0 0 1 201.469 37.381 Tm
+1 0 0 1 203.169 36.619 Tm
 (-1-) Tj
 ET
 
@@ -160,11 +160,11 @@ xref
 0000000073 00000 n
 0000000122 00000 n
 0000000248 00000 n
-0000002566 00000 n
+0000002582 00000 n
 trailer
 <<
 /Root 2 0 R
 /Size 6
 >>
 startxref
-2638
+2654
