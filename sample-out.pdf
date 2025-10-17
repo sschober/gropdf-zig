@@ -26,23 +26,30 @@ endobj
 /F1 6 0 R
 /F2 7 0 R
 /F3 5 0 R
+/F4 6 0 R
+/F5 5 0 R
+/F6 6 0 R
+/F7 5 0 R
 >>
 >>
 >>
 endobj
 4 0 obj
 <<
-/Length 2632
+/Length 5281
 >>
 stream
 BT
+1 0 0 1 0.0 780.0 Tm
 1 0 0 1 72.0 780.0 Tm
 /F0 11. Tf
 /F0 10. Tf
 1 0 0 1 72.0 780.0 Tm
 ( ) Tj
+1 0 0 1 72.0 780.0 Tm
 1 0 0 1 74.5 780.0 Tm
 ( ) Tj
+1 0 0 1 74.5 768.0 Tm
 1 0 0 1 72.0 768.0 Tm
 1 0 0 1 72.0 756.0 Tm
 1 0 0 1 72.0 740.0 Tm
@@ -54,6 +61,7 @@ BT
 1 0 0 1 72.0 557.0 Tm
 /F1 11. Tf
 /F1 14. Tf
+1 0 0 1 72.0 541.0 Tm
 1 0 0 1 164.686 541.0 Tm
 (gr) Tj
 1 0 0 1 178.113 541.0 Tm
@@ -65,108 +73,229 @@ BT
 (est) Tj
 /F2 14. Tf
 /F2 11. Tf
+1 0 0 1 239.405 524.758 Tm
 1 0 0 1 205.308 524.758 Tm
 (by) Tj
+1 0 0 1 205.308 508.516 Tm
 1 0 0 1 180.8 508.516 Tm
 0.0 Tw
 (Sven Sc) Tj
 1 0 0 1 214.537 508.516 Tm
 (hober) Tj
+1 0 0 1 214.537 459.979 Tm
 1 0 0 1 72.0 459.979 Tm
 /F0 11. Tf
 1 0 0 1 72.0 459.979 Tm
 1 0 0 1 72.0 443.548 Tm
 1 0 0 1 72.0 459.979 Tm
-(This file contains only tw) Tj
-1 0 0 1 183.787 459.979 Tm
-(o paragraphs of te) Tj
-1 0 0 1 262.778 459.979 Tm
-(xt. It can be used to) Tj
 1 0 0 1 72.0 443.548 Tm
+/F1 11. Tf
+/F1 14. Tf
+1 0 0 1 72.0 443.548 Tm
+1 0 0 1 72.0 445.172 Tm
+(Intr) Tj
+1 0 0 1 95.856 445.172 Tm
+0.735 Tw
+(oduction and Moti) Tj
+1 0 0 1 206.176 445.172 Tm
 (v) Tj
-1 0 0 1 77.335 443.548 Tm
-2.299 Tw
-(erify some grof) Tj
-1 0 0 1 149.503 443.548 Tm
-2.3 Tw
-(f formatting properties. grof) Tj
-1 0 0 1 279.591 443.548 Tm
-(f positions and) Tj
+1 0 0 1 213.36 445.172 Tm
+(ation) Tj
+1 0 0 1 213.36 427.306 Tm
 1 0 0 1 72.0 427.306 Tm
-0.0 Tw
-(alignes lines of te) Tj
-1 0 0 1 149.132 427.306 Tm
-(xt nicely) Tj
-1 0 0 1 186.609 427.306 Tm
-(.) Tj
-1 0 0 1 97.0 411.64 Tm
-0.14 Tw
-0.13 Tw
-(This is the second paragraph. It contains a fe) Tj
-1 0 0 1 293.378 411.64 Tm
-(w sentences.) Tj
-1 0 0 1 72.0 394.822 Tm
-0.0 Tw
-(Use mato to inspect, what grof) Tj
-1 0 0 1 206.761 394.822 Tm
-(f source code results.) Tj
-1 0 0 1 97.0 378.958 Tm
-1.748 Tw
-(This is a third paragraph. It follo) Tj
-1 0 0 1 250.589 378.958 Tm
-1.749 Tw
-(ws, that the first sen-) Tj
-1 0 0 1 72.0 362.338 Tm
-1.173 Tw
-(tence abo) Tj
-1 0 0 1 114.867 362.338 Tm
-(v) Tj
-1 0 0 1 120.202 362.338 Tm
-(e is a lie. Let') Tj
-1 0 0 1 184.53 362.338 Tm
-(s mak) Tj
-1 0 0 1 211.579 362.338 Tm
-(e this one a bit longer) Tj
-1 0 0 1 312.97 362.338 Tm
-1.172 Tw
-(, so that) Tj
-1 0 0 1 72.0 346.96 Tm
-0.133 Tw
-0.134 Tw
-(we can see, if we do not accumulate errors along the te) Tj
-1 0 0 1 314.789 346.96 Tm
-(xt. I am) Tj
-1 0 0 1 72.0 329.854 Tm
-(e) Tj
-1 0 0 1 76.719 329.854 Tm
-1.373 Tw
-(xcited to see what this will look lik) Tj
-1 0 0 1 240.633 329.854 Tm
-1.372 Tw
-(e. I hope the result will) Tj
-1 0 0 1 72.0 313.612 Tm
-1.11 Tw
-1.12 Tw
-(look good and will be set beautifully) Tj
-1 0 0 1 238.771 313.612 Tm
-(. I just noticed a strange) Tj
-1 0 0 1 72.0 297.937 Tm
-1.6 Tw
-(horizontal alignment issue, which v) Tj
-1 0 0 1 232.764 297.937 Tm
-1.59 Tw
-(anished, when I corrected) Tj
-1 0 0 1 72.0 281.128 Tm
-0.0 Tw
-(a spelling error) Tj
-1 0 0 1 137.989 281.128 Tm
-(.) Tj
-1 0 0 1 72.0 269.128 Tm
-/F0 10. Tf
-1 0 0 1 72.0 269.128 Tm
+/F0 14. Tf
 /F0 11. Tf
+1 0 0 1 72.0 427.306 Tm
+/F0 35. Tf
+1 0 0 1 72.0 411.64 Tm
+(T) Tj
+1 0 0 1 72.0 443.548 Tm
+/F0 11. Tf
+1 0 0 1 72.0 427.306 Tm
+1 0 0 1 96.752 427.306 Tm
+4.536 Tw
+4.535 Tw
+(his file contains only some paragraphs of te) Tj
+1 0 0 1 319.392 427.306 Tm
+(xt. Its) Tj
+1 0 0 1 319.392 411.64 Tm
+1 0 0 1 96.752 411.64 Tm
+3.21 Tw
+3.22 Tw
+(purpose is to sho) Tj
+1 0 0 1 179.837 411.64 Tm
+(wcase some of grof) Tj
+1 0 0 1 274.506 411.64 Tm
+(f') Tj
+1 0 0 1 281.832 411.64 Tm
+(s features und) Tj
+1 0 0 1 281.832 394.822 Tm
+1 0 0 1 72.0 394.822 Tm
+3.108 Tw
+3.107 Tw
+(highlight potential rendering problems in my custom PDF) Tj
+1 0 0 1 72.0 378.958 Tm
+(back) Tj
+1 0 0 1 92.658 378.958 Tm
+0.0 Tw
+(end, gropdf.zig.) Tj
+1 0 0 1 92.658 346.96 Tm
+1 0 0 1 72.0 346.96 Tm
+/F1 11. Tf
+/F1 13. Tf
+1 0 0 1 72.0 346.96 Tm
+1 0 0 1 72.0 347.972 Tm
+(Curr) Tj
+1 0 0 1 99.924 347.972 Tm
+0.485 Tw
+(ent State) Tj
+1 0 0 1 99.924 329.854 Tm
+1 0 0 1 72.0 329.854 Tm
+/F0 13. Tf
+/F0 11. Tf
+1 0 0 1 72.0 329.854 Tm
+/F0 35. Tf
+1 0 0 1 72.0 313.612 Tm
+(C) Tj
+1 0 0 1 72.0 346.96 Tm
+/F0 11. Tf
+1 0 0 1 72.0 329.854 Tm
+1 0 0 1 98.745 329.854 Tm
+(urrently) Tj
+1 0 0 1 132.856 329.854 Tm
+1.568 Tw
+1.569 Tw
+(, a lot of features are implemented: W) Tj
+1 0 0 1 309.851 329.854 Tm
+(e clearly) Tj
+1 0 0 1 309.851 313.612 Tm
+1 0 0 1 98.745 313.612 Tm
+0.663 Tw
+0.662 Tw
+(can typeset characters, sentences and whole paragraphs.) Tj
+1 0 0 1 98.745 297.937 Tm
+1 0 0 1 72.0 297.937 Tm
+2.59 Tw
+2.6 Tw
+(In addition, headings are w) Tj
+1 0 0 1 199.636 297.937 Tm
+(orking, some glitches ha) Tj
+1 0 0 1 313.188 297.937 Tm
+(v) Tj
+1 0 0 1 318.523 297.937 Tm
+(e been) Tj
+1 0 0 1 318.523 281.128 Tm
+1 0 0 1 72.0 281.128 Tm
+(solv) Tj
+1 0 0 1 90.172 281.128 Tm
+1.127 Tw
+(ed by me. Ev) Tj
+1 0 0 1 151.48 281.128 Tm
+(en Drop Caps are w) Tj
+1 0 0 1 243.3 281.128 Tm
+1.126 Tw
+(orking, and if you look) Tj
+1 0 0 1 243.3 264.886 Tm
+1 0 0 1 72.0 264.886 Tm
+(closely) Tj
+1 0 0 1 102.448 264.886 Tm
+1.663 Tw
+1.664 Tw
+(, you will notice the page number at the bottom. But) Tj
+1 0 0 1 102.448 248.644 Tm
+1 0 0 1 72.0 248.644 Tm
+1.477 Tw
+1.476 Tw
+(there is dash character missing on the right side of the page) Tj
+1 0 0 1 72.0 232.402 Tm
+(number) Tj
+1 0 0 1 105.0 232.402 Tm
+0.0 Tw
+(. This is due to a missing H request in grout.) Tj
+1 0 0 1 105.0 216.916 Tm
+1 0 0 1 97.0 216.916 Tm
+2.249 Tw
+2.25 Tw
+(The positioning in grout is an interessting topic, as it) Tj
+1 0 0 1 97.0 199.918 Tm
+1 0 0 1 72.0 199.918 Tm
+0.339 Tw
+0.338 Tw
+(seems to be absolute, at first glance. Meaning, there are H and) Tj
+1 0 0 1 72.0 183.676 Tm
+2.7 Tw
+(V absolute coordinates gi) Tj
+1 0 0 1 191.993 183.676 Tm
+(v) Tj
+1 0 0 1 197.328 183.676 Tm
+2.701 Tw
+(en through all of the document.) Tj
+1 0 0 1 197.328 167.434 Tm
+1 0 0 1 72.0 167.434 Tm
+(Ev) Tj
+1 0 0 1 84.56 167.434 Tm
+0.479 Tw
+(erywhere, b) Tj
+1 0 0 1 136.25 167.434 Tm
+5.363 Tw
+0.479 Tw
+(ut at the page bottom, where the lq- 1 -rq is to be) Tj
+1 0 0 1 136.25 151.192 Tm
+1 0 0 1 72.0 151.192 Tm
+0.785 Tw
+(rendered. There, grof) Tj
+1 0 0 1 166.781 151.192 Tm
+0.786 Tw
+(f relies on the output de) Tj
+1 0 0 1 274.688 151.192 Tm
+(vice updating an) Tj
+1 0 0 1 274.688 134.995 Tm
+1 0 0 1 72.0 134.995 Tm
+1.522 Tw
+(internal dra) Tj
+1 0 0 1 123.774 134.995 Tm
+(wing position, according to the characters put on) Tj
+1 0 0 1 123.774 118.708 Tm
+1 0 0 1 72.0 118.708 Tm
+0.0 Tw
+(the page.) Tj
+1 0 0 1 72.0 102.466 Tm
+1 0 0 1 97.0 102.466 Tm
+0.56 Tw
+(This relati) Tj
+1 0 0 1 142.213 102.466 Tm
+(v) Tj
+1 0 0 1 147.548 102.466 Tm
+0.561 Tw
+(e positioning is currently not implemented in) Tj
+1 0 0 1 147.548 86.224 Tm
+1 0 0 1 72.0 86.224 Tm
+1.283 Tw
+(gropdf.zig and that is wh) Tj
+1 0 0 1 186.818 86.224 Tm
+1.282 Tw
+(y the second '-' is rendered e) Tj
+1 0 0 1 322.116 86.224 Tm
+(xactly) Tj
+1 0 0 1 322.116 69.982 Tm
+1 0 0 1 72.0 69.982 Tm
+(abo) Tj
+1 0 0 1 87.719 69.982 Tm
+(v) Tj
+1 0 0 1 93.54 69.982 Tm
+0.0 Tw
+(e the first one and it seems as though there is no second.) Tj
+1 0 0 1 93.54 57.982 Tm
+1 0 0 1 72.0 57.982 Tm
+/F0 10. Tf
+1 0 0 1 72.0 57.982 Tm
+/F0 11. Tf
+1 0 0 1 72.0 36.619 Tm
 1 0 0 1 203.169 36.619 Tm
-(-1-) Tj
+(-1) Tj
+1 0 0 1 203.169 36.619 Tm
+(-) Tj
+1 0 0 1 203.169 0.0 Tm
 ET
 
 endstream
@@ -198,14 +327,14 @@ xref
 0000000015 00000 n
 0000000073 00000 n
 0000000122 00000 n
-0000000278 00000 n
-0000002962 00000 n
-0000003034 00000 n
-0000003105 00000 n
+0000000318 00000 n
+0000005651 00000 n
+0000005723 00000 n
+0000005794 00000 n
 trailer
 <<
 /Root 2 0 R
 /Size 8
 >>
 startxref
-3178
+5867

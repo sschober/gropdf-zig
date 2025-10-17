@@ -6,15 +6,31 @@
 .PAPER A5
 .PT_SIZE 11
 .START
+.HEADING 1 "Introduction and Motivation"
 .PP
-This file contains only two paragraphs of text. It can be used to verify some
-groff formatting properties. groff positions and alignes lines of text nicely.
+.DROPCAP T 2
+his file contains only some paragraphs of text. Its purpose is to
+showcase some of groff's features und highlight potential rendering
+problems in my custom PDF backend, gropdf.zig.
+.
+.HEADING 2 "Current State"
 .PP
-This is the second paragraph. It contains a few sentences. Use mato to inspect,
-what groff source code results.
+.DROPCAP C 2
+urrently, a lot of features are implemented: We clearly can typeset
+characters, sentences and whole paragraphs. In addition, headings
+are working, some glitches have been solved by me. Even Drop Caps
+are working, and if you look closely, you will notice the page
+number at the bottom. But there is dash character missing on the
+right side of the page number. This is due to a missing H request in
+grout.
 .PP
-This is a third paragraph. It follows, that the first sentence above is a lie.
-Let's make this one a bit longer, so that we can see, if we do not accumulate
-errors along the text. I am excited to see what this will look like. I hope the
-result will look good and will be set beautifully. I just noticed a strange
-horizontal alignment issue, which vanished, when I corrected a spelling error.
+The positioning in grout is an interessting topic, as it seems to be
+absolute, at first glance. Meaning, there are H and V absolute
+coordinates given through all of the document. Everywhere, but at
+the page bottom, where the "- 1 -" is to be rendered. There, groff
+relies on the output device updating an internal drawing position,
+according to the characters put on the page.
+.PP
+This relative positioning is currently not implemented in gropdf.zig
+and that is why the second '-' is rendered exactly above the first
+one and it seems as though there is no second.
