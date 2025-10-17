@@ -144,8 +144,10 @@ pub const TextObject = struct {
         try self.flushPos();
     }
     /// set `f` position - aka y coordinate
-    pub fn setF(self: *TextObject, f: FixPoint) void {
+    pub fn setF(self: *TextObject, f: FixPoint) !void {
+        try self.newLine();
         self.f = f;
+        try self.flushPos();
     }
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} TL", .{l}));

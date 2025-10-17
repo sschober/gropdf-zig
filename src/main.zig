@@ -169,7 +169,7 @@ pub fn main() !u8 {
                         //-v.integer = curPage.?.y - v.integer;
                         v = v.subtractFrom(curPage.?.y);
                         try stderr.print("y - v: {f}\n", .{v});
-                        curTextObject.?.setF(v);
+                        try curTextObject.?.setF(v);
                     }
                 },
                 .h => {
