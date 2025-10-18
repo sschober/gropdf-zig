@@ -137,6 +137,10 @@ pub fn main() !u8 {
                     if (std.mem.eql(u8, line[1..3], "hy")) {
                         // TODO replace `-` with real glyph from font
                         try curTextObject.?.addWord("-");
+                    } else if (std.mem.eql(u8, line[1..3], "lq")) {
+                        try curTextObject.?.addWord("\"");
+                    } else if (std.mem.eql(u8, line[1..3], "rq")) {
+                        try curTextObject.?.addWord("\"");
                     } else {
                         try curTextObject.?.addWord(line[1..]);
                     }
