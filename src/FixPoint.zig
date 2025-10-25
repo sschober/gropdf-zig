@@ -115,4 +115,8 @@ test "Multiplication" {
     res = Self.from(1, 10).mult(Self.from(1, 10));
     std.debug.print("0.1 * 0.1 = {f}\n", .{res});
     try expect(res.integer == 0 and res.fraction == 10);
+
+    const zero_dot_nineninenine = Self{ .integer = 0, .fraction = 999 };
+    res = zero_dot_nineninenine.mult(zero_dot_nineninenine);
+    std.debug.print("0.999 * 0.999 = {f}\n", .{res});
 }
