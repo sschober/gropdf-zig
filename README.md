@@ -2,7 +2,7 @@
 
 The original UNIX typesetting software `roff` (from 'runoff') has a GNU
 implementation called `groff`, which you will very likely have installed on
-your computer if you use MacOS, a Linux distribution, or Windows with MinGW or
+your system if you use MacOS, a Linux distribution, or Windows with MinGW or
 WSL. It is used today mainly to typeset man pages in the terminal, but actually
 it's much more powerful. Using macro packages like, `ms` or `mom`, you can
 produce beautifully typeset documents in `dvi`, `ps` or `pdf` format.
@@ -34,9 +34,9 @@ At the moment, we implement a small subset of the `grout` language only:
 easily in PDF, without the need to embed it.
 * No drawing commands are interpreted.
 
-The resulting PDF has some, let's call them inefficiencies. A lot of similar commands
-are issued in sequence, which could be compacted. As a lot of this is already present
-in the input, I chose to ignore it at the moment.
+The resulting PDF has some, let's call them inefficiencies. A lot of similar
+commands are issued in sequence, which could be compacted. As a lot of this is
+already present in the input, I chose to ignore it at the moment.
 
 ## Usage
 
@@ -64,7 +64,7 @@ Then, we can render it
 $ zig build run < input.grout > sample-out.pdf
 ```
 
-and inspect it, using any PDF viewer. On mac os this might be:
+and inspect it, using any PDF viewer. On macos this might be:
 
 ```bash
 $ open sample-out.pdf
@@ -86,36 +86,19 @@ Currently, the performance looks promising:
 ```bash
 $ termgraph measures.lst
 
-gropdf.pl     : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 107.00
-gropdf_zig    : ▇▇▇▇▇▇▇▇▇▇▇ 24.00
-gropdf_zig_rel: ▏ 2.00 
+gropdf.pl     : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 185.00
+gropdf_zig    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 101.00
+gropdf_zig_rel: ▇▇ 9.00
 ```
 
-Seems like a factor of `4` quicker for debug builds and a factor of over `50`
+Seems like a factor of `2` quicker for debug builds and a factor of about `20`
 for release builds!
 
-The release binary is only `41k` on linux, which I find quite impressive:
+The release binary is only `42k` on linux, which I find quite impressive:
 
 ```bash
 $ ls zig-out/bin/
 Permissions Size User Date Modified Name
-.rwxr-xr-x   41k sven 25 Sep 06:13  󰡯 gropdf_zig
+.rwxr-xr-x   42k sven 25 Oct 16:57  󰡯 gropdf_zig
 ```
 
-### File Sizes
-
-Another interesting aspect of this are the respective file sizes involved in
-the translation process:
-
-```bash
-termgraph file-sizes.lst
-
-input.mom     : ▇▇▇▇▇▇▇▇▇ 769.00
-input.grout   : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 3.88 K
-sample-out.pdf: ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 1.94 K
-```
-
-We see here from an input of `769` bytes, we get a `3.8kb` grout file, which
-in turn results in a `1.94kb` PDF. So, PDF can be in fact even more compact than
-`grout`. But that's only the case, because we currently do not support font file
-embedding and rely on a system font.
