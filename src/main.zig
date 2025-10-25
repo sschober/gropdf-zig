@@ -19,11 +19,17 @@ pub fn main() !u8 {
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
+
     // put empty buffer into stderr writer to make it unbuffered
     var stderr_buffer: [0]u8 = undefined;
     var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+
     const stderr = &stderr_writer.interface;
+    const stdout = &stdout_writer.interface;
+
+    //
+    //
+    //
 
     var stdin_buffer: [8096]u8 = undefined;
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
@@ -32,6 +38,7 @@ pub fn main() !u8 {
     var doc: ?pdf.Document = null;
     // maps grout font numbers to pdf font numbers
     var fontMap = std.AutoHashMap(usize, usize).init(allocator.allocator());
+    var fontGlyphMap = std.AutoHashMap(usize, [257]usize).init(allocator.allocator());
     var curPdfFontNum: ?usize = null;
     var curFontSize: ?usize = null;
     var lineNum: usize = 0;
@@ -79,12 +86,18 @@ pub fn main() !u8 {
                                 if (std.mem.eql(u8, "TR", fontName)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
                                     try fontMap.put(fontNum, pdfFontNum);
+                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TR");
+                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
                                 } else if (std.mem.eql(u8, "TB", fontName)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
                                     try fontMap.put(fontNum, pdfFontNum);
+                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TB");
+                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
                                 } else if (std.mem.eql(u8, "TI", fontName)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
                                     try fontMap.put(fontNum, pdfFontNum);
+                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TI");
+                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
                                 }
                             },
                             .res => {
@@ -155,9 +168,9 @@ pub fn main() !u8 {
                 },
                 .w => {
                     if (line[1] == 'h') {
-                        const h = try std.fmt.parseInt(usize, line[2..], 10);
-                        try curTextObject.?.setInterwordSpace(h);
-                        try curTextObject.?.addWord(" ");
+                        const h = try groff.zPosition.fromString(line[2..]);
+                        const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
+                        try curTextObject.?.addE(fixPointFromZPos(h), glyph_map, curFontSize.?);
                     }
                 },
                 .n => {
@@ -168,17 +181,18 @@ pub fn main() !u8 {
                     // V151452
                     const v_z = try groff.zPosition.fromString(line[1..]);
                     var v = fixPointFromZPos(v_z);
-                    try stderr.print("v_y: {d} v: {f} ", .{ v_z.v, v });
+                    //try stderr.print("v_y: {d} v: {f} ", .{ v_z.v, v });
                     if (v.integer <= curPage.?.y) {
                         //-v.integer = curPage.?.y - v.integer;
                         v = v.subtractFrom(curPage.?.y);
-                        try stderr.print("y - v: {f}\n", .{v});
+                        //try stderr.print("y - v: {f}\n", .{v});
                         try curTextObject.?.setF(v);
                     }
                 },
                 .h => {
-                    // we ignore `h` at the moment, as PDF already increases the position with each glyph
-                    // and we replace C glyphs with concrete chars.
+                    const h = try groff.zPosition.fromString(line[1..]);
+                    const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
+                    try curTextObject.?.addE(fixPointFromZPos(h), glyph_map, curFontSize.?);
                 },
                 .v => {
                     // we ignore `v` as it seems the absolute positioning commands are enough

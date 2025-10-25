@@ -1,6 +1,9 @@
 const std = @import("std");
 
 const String = []const u8;
+const GlyphMap = [257]usize;
+const Allocator = std.mem.Allocator;
+
 /// groff out language elements - all single characters, some take
 pub const Out = enum {
     /// device control command - see XSubCommand
@@ -61,3 +64,39 @@ pub const zPosition = struct {
         return result;
     }
 };
+
+pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
+    const path_font_desc = try std.fmt.allocPrint(gpa, "/usr/share/groff/current/font/devpdf/{s}", .{font_name});
+    var font_desc_TR = try std.fs.openFileAbsolute(path_font_desc, .{ .mode = .read_only });
+    defer font_desc_TR.close();
+    var read_buf: [4096]u8 = undefined;
+    var font_desc_TR_reader = font_desc_TR.reader(&read_buf);
+    var font_desc_TR_reader_ifc = &font_desc_TR_reader.interface;
+    var in_charset = false;
+    var glyph_widths: [257]usize = undefined;
+    @memset(&glyph_widths, 0);
+    while (try font_desc_TR_reader_ifc.takeDelimiter('\n')) |line| {
+        if (!in_charset) {
+            if (std.mem.eql(u8, line, "charset")) {
+                in_charset = true;
+            }
+            continue;
+        }
+        // we are in the charset section
+        var it_glyph = std.mem.splitScalar(u8, line, '\t');
+        _ = it_glyph.next().?;
+        const metrics = it_glyph.next().?;
+        if (std.mem.eql(u8, metrics, "\"")) {
+            continue;
+        }
+        var it_metrics = std.mem.splitScalar(u8, metrics, ',');
+        const glyph_width = it_metrics.next().?;
+        const glyph_width_usize = try std.fmt.parseUnsigned(usize, glyph_width, 10);
+        _ = it_glyph.next().?; //type
+        const index = it_glyph.next().?;
+        const index_usize = try std.fmt.parseUnsigned(usize, index, 10);
+        _ = it_glyph.next().?;
+        glyph_widths[index_usize] = glyph_width_usize;
+    }
+    return glyph_widths;
+}

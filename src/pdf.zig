@@ -141,6 +141,20 @@ pub const TextObject = struct {
     pub fn setE(self: *TextObject, h: FixPoint) !void {
         try self.newLine();
         self.e = h;
+        try self.addComment(try std.fmt.allocPrint(self.allocator, "H: {f} ", .{h}));
+        try self.flushPos();
+    }
+    pub fn addE(self: *TextObject, h: FixPoint, glyph_widths: [257]usize, font_size: usize) !void {
+        var word_length = FixPoint{};
+        for (self.curLine.items) |c| {
+            const glyph_width = glyph_widths[c];
+            const adjusted = FixPoint.from(glyph_width * font_size, UNITSCALE);
+            word_length = word_length.addTo(adjusted);
+        }
+        const offset = word_length.addTo(h);
+        self.e = self.e.addTo(offset);
+        try self.newLine();
+        try self.addComment(try std.fmt.allocPrint(self.allocator, "h: {f} + {f} = {f}", .{ word_length, h, offset }));
         try self.flushPos();
     }
     /// set `f` position - aka y coordinate
@@ -171,14 +185,17 @@ pub const TextObject = struct {
     pub fn addWord(self: *TextObject, s: String) !void {
         try self.curLine.appendSlice(s);
     }
-    pub fn addText(self: *TextObject, s: String) !void {
+    fn addComment(self: *TextObject, s: String) !void {
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "% {s}", .{s}));
+    }
+    pub fn addLine(self: *TextObject, s: String) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "({s}) Tj", .{s}));
     }
 
     pub fn newLine(self: *TextObject) !void {
         if (self.curLine.items.len > 0) {
             // try self.flushPos();
-            try self.addText(self.curLine.items);
+            try self.addLine(self.curLine.items);
             self.curLine = ArrayList(u8).init(self.allocator);
         }
     }
