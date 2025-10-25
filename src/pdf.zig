@@ -98,8 +98,13 @@ pub const Pages = struct {
 };
 
 /// pdf text object api - acts like a buffer, saving commands in its state
-/// which are rendered out when the object ist formatted. internally, it uses
-/// an array of lines
+/// which are rendered out when the object is formatted. internally, it uses
+/// an array of lines, and a current line buffer. implements relative positioning.
+///
+/// relative positioning would not strictly be necessary, as PDF computes word
+/// lengths automatically, but groff uses relative positioning and we cannot
+/// query the current x position of the text matrix. thus, we are forced to
+/// keep count ourselves.
 pub const TextObject = struct {
     allocator: Allocator,
     curLine: ArrayList(u8),
@@ -148,6 +153,7 @@ pub const TextObject = struct {
     pub fn skipLastWord(self: *TextObject) void {
         self.skip_last_word = true;
     }
+    /// increment x position by h, flush current line and init a new one
     pub fn addE(self: *TextObject, h: FixPoint) !void {
         self.e = self.e.addTo(h);
         try self.newLine();
@@ -178,6 +184,8 @@ pub const TextObject = struct {
     pub fn addVerticalSpace(self: *TextObject, v: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "0 {d} Td", .{v}));
     }
+    /// add a word to the current text object and increase the internal x coordinate by a computed length.
+    /// that's why we need the glyph width map for the current font and the current font size
     pub fn addWord(self: *TextObject, s: String, glyph_widths: [257]usize, font_size: usize) !void {
         try self.curLine.appendSlice(s);
         var word_length = FixPoint{};
@@ -188,20 +196,24 @@ pub const TextObject = struct {
         }
         self.e = self.e.addTo(word_length);
     }
+    /// add a word to the current text object, but do not increase the internal
+    /// x coordinate. this is handy for C commands, which are always followed
+    /// by `w h` commands with enough space increment.
     pub fn addWordWithoutMove(self: *TextObject, s: String) !void {
         try self.curLine.appendSlice(s);
     }
     fn addComment(self: *TextObject, s: String) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "% {s}", .{s}));
     }
-    pub fn addLine(self: *TextObject, s: String) !void {
+    /// append `s` to the internal lines array list
+    fn flushLine(self: *TextObject, s: String) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "({s}) Tj", .{s}));
     }
 
+    /// flush the current line and initialize a new one
     pub fn newLine(self: *TextObject) !void {
         if (self.curLine.items.len > 0) {
-            // try self.flushPos();
-            try self.addLine(self.curLine.items);
+            try self.flushLine(self.curLine.items);
             self.curLine = ArrayList(u8).init(self.allocator);
         }
     }

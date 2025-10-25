@@ -65,6 +65,9 @@ pub const zPosition = struct {
     }
 };
 
+/// reads the groff font descriptor file as defined in `groff_font(5)`. parses
+/// the charset section of that file to extract the width of each glyph. uses
+/// the index column to store the width in an array.
 pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
     const path_font_desc = try std.fmt.allocPrint(gpa, "/usr/share/groff/current/font/devpdf/{s}", .{font_name});
     var font_desc_TR = try std.fs.openFileAbsolute(path_font_desc, .{ .mode = .read_only });
