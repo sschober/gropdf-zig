@@ -149,15 +149,14 @@ pub fn main() !u8 {
                 .C => {
                     if (std.mem.eql(u8, line[1..3], "hy")) {
                         // TODO replace `-` with real glyph from font
-                        try curTextObject.?.addWord("-");
+                        try curTextObject.?.addWordWithoutMove("-");
                     } else if (std.mem.eql(u8, line[1..3], "lq")) {
-                        try curTextObject.?.addWord("\"");
+                        try curTextObject.?.addWordWithoutMove("\"");
                     } else if (std.mem.eql(u8, line[1..3], "rq")) {
-                        try curTextObject.?.addWord("\"");
+                        try curTextObject.?.addWordWithoutMove("\"");
                     } else {
-                        try curTextObject.?.addWord(line[1..]);
+                        try curTextObject.?.addWordWithoutMove(line[1..]);
                     }
-                    curTextObject.?.skipLastWord();
                 },
                 .s => {
                     const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
@@ -165,13 +164,13 @@ pub fn main() !u8 {
                     try curTextObject.?.selectFont(curPdfFontNum.?, fontSize / pdf.UNITSCALE);
                 },
                 .t => {
-                    try curTextObject.?.addWord(line[1..]);
+                    const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
+                    try curTextObject.?.addWord(line[1..], glyph_map, curFontSize.?);
                 },
                 .w => {
                     if (line[1] == 'h') {
                         const h = try groff.zPosition.fromString(line[2..]);
-                        const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
-                        try curTextObject.?.addE(fixPointFromZPos(h), glyph_map, curFontSize.?);
+                        try curTextObject.?.addE(fixPointFromZPos(h));
                     }
                 },
                 .n => {
@@ -192,8 +191,7 @@ pub fn main() !u8 {
                 },
                 .h => {
                     const h = try groff.zPosition.fromString(line[1..]);
-                    const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
-                    try curTextObject.?.addE(fixPointFromZPos(h), glyph_map, curFontSize.?);
+                    try curTextObject.?.addE(fixPointFromZPos(h));
                 },
                 .v => {
                     // we ignore `v` as it seems the absolute positioning commands are enough
