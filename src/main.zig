@@ -44,6 +44,8 @@ pub fn main() !u8 {
     var lineNum: usize = 0;
     // we use optionals here, as zig does not allow null pointers
     var curPage: ?*pdf.Page = null;
+    var curX: usize = 0;
+    var curY: usize = 0;
     var curTextObject: ?*pdf.TextObject = null;
     // read loop to parse and dispatch groff out input
     while (reader.takeDelimiter('\n')) |lineOpt| {
@@ -61,6 +63,12 @@ pub fn main() !u8 {
             switch (cmd) {
                 .p => {
                     curPage = try doc.?.addPage();
+                    if (curX > 0) {
+                        curPage.?.x = curX;
+                    }
+                    if (curY > 0) {
+                        curPage.?.y = curY;
+                    }
                     curTextObject = curPage.?.contents.textObject;
                 },
                 .f => {
@@ -82,6 +90,9 @@ pub fn main() !u8 {
                             .font => {
                                 const fontNumStr = it.next().?;
                                 const fontNum = try std.fmt.parseUnsigned(usize, fontNumStr, 10);
+                                if (fontMap.contains(fontNum)) {
+                                    continue;
+                                }
                                 const fontName = it.next().?;
                                 if (std.mem.eql(u8, "TR", fontName)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
@@ -128,6 +139,7 @@ pub fn main() !u8 {
                                             if (zPosXScaled.integer != curPage.?.x) {
                                                 try stderr.print("setting x width from {d} to {d}\n", .{ curPage.?.x, zPosXScaled.integer });
                                                 curPage.?.x = zPosXScaled.integer;
+                                                curX = zPosXScaled.integer;
                                             }
                                             const zY = itZSizes.next().?;
                                             const zPosY = try groff.zPosition.fromString(zY);
@@ -135,6 +147,7 @@ pub fn main() !u8 {
                                             if (zPosYScaled.integer != curPage.?.y) {
                                                 try stderr.print("setting y width from {d} to {d}\n", .{ curPage.?.y, zPosYScaled.integer });
                                                 curPage.?.y = zPosYScaled.integer;
+                                                curY = zPosYScaled.integer;
                                             }
                                         }
                                     } else {

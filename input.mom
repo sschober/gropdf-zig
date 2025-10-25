@@ -2,7 +2,6 @@
 .TITLE "gropdf.zig Test"
 .AUTHOR "Sven Schober"
 .PRINTSTYLE TYPESET
-.PAGE 5.8i 9i 1i 1i .75i .75i
 .PAPER A5
 .PT_SIZE 11
 .START
@@ -20,17 +19,24 @@ urrently, a lot of features are implemented: We clearly can typeset
 characters, sentences and whole paragraphs. In addition, headings
 are working, some glitches have been solved by me. Even Drop Caps
 are working, and if you look closely, you will notice the page
-number at the bottom. But there is dash character missing on the
-right side of the page number. This is due to a missing H request in
-grout.
+number at the bottom.
 .PP
 The positioning in grout is an interessting topic, as it seems to be
 absolute, at first glance. Meaning, there are H and V absolute
-coordinates given through all of the document. Everywhere, but at
-the page bottom, where the "- 1 -" is to be rendered. There, groff
-relies on the output device updating an internal drawing position,
-according to the characters put on the page.
+coordinates given through all of the document. 
 .PP
-This relative positioning is currently not implemented in gropdf.zig
-and that is why the second '-' is rendered exactly above the first
-one and it seems as though there is no second.
+But, when ligatures are to be rendered, C commands are issued and
+these do not increment the internal drawing position of the backend
+device. The same is true for wh commands, which increment the x
+drawing position in a relative way. But in order to be able to
+compute the new absolute position, we need to know the current
+position.
+.PP
+PDF on the other hand has a text rendering command Tj, which
+increases the drawing position automatically, but we have no way to
+query the current position as that is an internal state of the
+renderer, which lives in the viewer.
+.PP
+There was no way around implementing relative positioning in
+gropdf.zig. That meant, we need to read the font description files
+residing in /usr/share/groff/current/font/devpdf/<font name>

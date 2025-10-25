@@ -76,50 +76,41 @@ V36000
 H72000
 x X papersize=612000z,792000z
 n12000 0
-V52000
+V36000
 H72000
 s12500
-V52000
+V36000
 H72000
-x X papersize=417600z,792000z
-V52000
-H72000
-x X papersize=417600z,648000z
-n16000 0
-V38000
-H72000
-V38000
-H72000
-x X papersize=421000z,648000z
-V38000
+x X papersize=421000z,792000z
+V36000
 H72000
 x X papersize=421000z,595000z
 n0 0
-V38000
+V36000
 H72000
 s11000
-V38000
+V36000
 H72000
 x X ps: exec 0 setlinejoin
-V38000
+V36000
 H72000
 x X ps: exec 0 setlinecap
 n0 0
-V38000
+V36000
 H72000
-V38000
+V36000
 H72000
 x X papersize=421000z,595000z
-V38000
+V36000
 H72000
 x X papersize=421000z,595000z
 n0 0
-x X ps:exec [/Dest /pdf:bm1 /View [/FitH 34242 u] /DEST pdfmark
+x X ps:exec [/Dest /pdf:bm1 /View [/FitH -1961 u] /DEST pdfmark
 x X ps:exec [/Dest /pdf:bm1 /Title (gropdf.zig Test\|) /Level 1 /OUT pdfmark
 x font 37 TB
 f37
 s14500
-V54000
+V90000
 H164686
 tgr
 H178113
@@ -130,46 +121,46 @@ wh3625
 tT
 H239405
 test
-n16242 0
+n16039 0
 x font 39 TI
 f39
 s11000
-V70242
+V106039
 H205308
 tby
-n16242 0
-V86484
+n16039 0
+V122078
 H180800
 tSven
 wh2750
 tSc
 H214537
 thober
-n16242 0
-V135210
+n16039 0
+V170195
 H72000
 f5
-V135210
+V170195
 H72000
 x X pdf: pagenumbering D . 1
-n16242 0
-V151452
+n16039 0
+V186234
 H72000
-n16242 0
-V135210
+n16039 0
+V170195
 H72000
-n16242 0
-x X ps:exec [/Dest /pdf:bm2 /View [/FitH -135210 u] /DEST pdfmark
+n16039 0
+x X ps:exec [/Dest /pdf:bm2 /View [/FitH -170195 u] /DEST pdfmark
 x X ps:exec [/Dest /pdf:bm2 /Title (Introduction and Motivation) /Level 2 /OUT pdfmark
-V151452
+V186234
 H72000
 f37
 s14000
 mr 0 0 0
-V151452
+V186234
 H72000
 x X ps: exec decornone
-V149828
+V184631
 tIntr
 H95856
 toduction
@@ -181,76 +172,76 @@ H206176
 tv
 H213036
 tation
-n16242 0
-V167694
+n16039 0
+V202273
 H72000
 f5
 s11000
 md
-V167694
+V202273
 H72000
 x X ps: exec decornone
-n16242 0
-s35600
-V183936
+n16039 0
+s35300
+V218312
 H72000
 tT
-V151452
+V186234
 n0 0
 s11000
-V167694
-H96752
+V202273
+H96568
 this
-wh7301
+wh7324
 Cfi
 h6116
 tle
-wh7301
+wh7324
 tcontains
-wh7301
+wh7324
 tonly
-wh7301
+wh7324
 tsome
-wh7301
+wh7324
 tparagraphs
-wh7301
+wh7324
 tof
-wh7300
+wh7323
 tte
-H319392
+H319369
 txt.
-wh7300
+wh7323
 tIts
-n16242 0
-V183936
-H96752
+n16039 0
+V218312
+H96568
 tpurpose
-wh5786
+wh5809
 tis
-wh5787
+wh5810
 tto
-wh5787
+wh5810
 tsho
-H179837
+H179722
 twcase
-wh5787
+wh5810
 tsome
-wh5787
+wh5810
 tof
-wh5787
+wh5810
 tgrof
-H274506
+H274460
 tf
 h605
 t'
-H281832
+H281786
 ts
-wh5787
+wh5810
 tfeatures
-wh5787
+wh5810
 tund
-n16242 0
-V200178
+n16039 0
+V234351
 H72000
 thighlight
 wh5873
@@ -267,89 +258,89 @@ wh5872
 tcustom
 wh5872
 tPDF
-n16242 0
-V216420
+n16039 0
+V250390
 H72000
 tback
 H92658
 tend,
 wh2750
 tgropdf.zig.
-n16242 0
-x X ps:exec [/Dest /pdf:bm3 /View [/FitH -232662 u] /DEST pdfmark
+n16039 0
+x X ps:exec [/Dest /pdf:bm3 /View [/FitH -266429 u] /DEST pdfmark
 x X ps:exec [/Dest /pdf:bm3 /Title (Current State) /Level 3 /OUT pdfmark
-V248904
+V282468
 H72000
 f37
 s13000
 mr 0 0 0
-V248904
+V282468
 H72000
 x X ps: exec decornone
-V247280
+V280865
 tCurr
 H99924
 tent
 wh3250
 tState
-n16242 0
-V265146
+n16039 0
+V298507
 H72000
 f5
 s11000
 md
-V265146
+V298507
 H72000
 x X ps: exec decornone
-n16242 0
-s35600
-V281388
+n16039 0
+s35300
+V314546
 H72000
 tC
-V248904
+V282468
 n0 0
 s11000
-V265146
-H98745
+V298507
+H98545
 turrently
-H132856
+H132656
 t,
-wh4333
+wh4358
 ta
-wh4333
+wh4358
 tlot
-wh4333
+wh4358
 tof
-wh4333
+wh4358
 tfeatures
-wh4333
+wh4358
 tare
-wh4333
+wh4358
 timplemented:
-wh4334
+wh4359
 tW
-H309851
+H309826
 te
-wh4334
+wh4359
 tclearly
-n16242 0
-V281388
-H98745
+n16039 0
+V314546
+H98545
 tcan
-wh3428
+wh3461
 ttypeset
-wh3428
+wh3461
 tcharacters,
-wh3427
+wh3461
 tsentences
-wh3427
+wh3461
 tand
-wh3427
+wh3460
 twhole
-wh3427
+wh3460
 tparagraphs.
-n16242 0
-V297630
+n16039 0
+V330585
 H72000
 tIn
 wh4824
@@ -374,8 +365,8 @@ H318523
 te
 wh4825
 tbeen
-n16242 0
-V313872
+n16039 0
+V346624
 H72000
 tsolv
 H90172
@@ -406,88 +397,34 @@ wh3891
 tyou
 wh3891
 tlook
-n16242 0
-V330114
+n16039 0
+V362663
 H72000
 tclosely
 H102448
 t,
-wh4428
+wh2750
 tyou
-wh4428
+wh2750
 twill
-wh4428
+wh2750
 tnotice
-wh4428
+wh2750
 tthe
-wh4428
+wh2750
 tpage
-wh4428
+wh2750
 tnumber
-wh4429
+wh2750
 tat
-wh4429
+wh2750
 tthe
-wh4429
+wh2750
 tbottom.
-wh4429
-tBut
-n16242 0
-V346356
-H72000
-tthere
-wh4242
-tis
-wh4242
-tdash
-wh4242
-tcharacter
-wh4242
-tmissing
-wh4242
-ton
-wh4242
-tthe
-wh4242
-tright
-wh4242
-tside
-wh4242
-tof
-wh4241
-tthe
-wh4241
-tpage
-n16242 0
-V362598
-H72000
-tnumber
-H105000
-t.
-wh2750
-tThis
-wh2750
-tis
-wh2750
-tdue
-wh2750
-tto
-wh2750
-ta
-wh2750
-tmissing
-wh2750
-tH
-wh2750
-trequest
-wh2750
-tin
-wh2750
-tgrout.
-n16242 0
-V378840
+n16039 0
+V378702
 H97000
-V378840
+V378702
 H97000
 x X ps: exec decornone
 tThe
@@ -509,8 +446,8 @@ wh5015
 tas
 wh5015
 tit
-n16242 0
-V395082
+n16039 0
+V394741
 H72000
 tseems
 wh3104
@@ -537,214 +474,234 @@ wh3103
 tH
 wh3103
 tand
-n16242 0
-V411324
+n16039 0
+V410780
 H72000
 tV
-wh5465
+wh2750
 tabsolute
-wh5465
+wh2750
 tcoordinates
-wh5465
+wh2750
 tgi
-H191993
+H183848
 tv
-H197328
+H189183
 ten
-wh5465
+wh2750
 tthrough
-wh5465
+wh2750
 tall
-wh5466
+wh2750
 tof
-wh5466
-tthe
-wh5466
-tdocument.
-n16242 0
-V427566
-H72000
-tEv
-H84056
-terywhere,
-wh3244
-tb
-H136250
-tut
-wh3244
-tat
-wh3244
-tthe
-wh3244
-tpage
-wh3244
-tbottom,
-wh3244
-twhere
-wh3244
-tthe
-wh3244
-Clq
-h4884
-t-
-wh3244
-t1
-wh3244
-t-
-Crq
-wh8128
-tis
-wh3244
-tto
-wh3244
-tbe
-n16242 0
-V443808
-H72000
-trendered.
-wh3550
-tThere,
-wh3550
-tgrof
-H166781
-tf
-wh3550
-trelies
-wh3550
-ton
-wh3550
-tthe
-wh3550
-toutput
-wh3551
-tde
-H274688
-tvice
-wh3551
-tupdating
-wh3551
-tan
-n16242 0
-V460050
-H72000
-tinternal
-wh4287
-tdra
-H123774
-twing
-wh4287
-tposition,
-wh4287
-taccording
-wh4287
-tto
-wh4287
-tthe
-wh4287
-tcharacters
-wh4287
-tput
-wh4287
-ton
-n16242 0
-V476292
-H72000
+wh2750
 tthe
 wh2750
-tpage.
-n16242 0
-V492534
+tdocument.
+n16039 0
+V426819
 H97000
-V492534
+V426819
 H97000
 x X ps: exec decornone
-tThis
-wh3325
-trelati
-H142213
-tv
-H147548
-te
-wh3325
-tpositioning
-wh3325
-tis
-wh3325
-tcurrently
-wh3325
+tBut,
+wh3296
+twhen
+wh3296
+tlig
+H157624
+tatures
+wh3296
+tare
+wh3296
+tto
+wh3296
+tbe
+wh3297
+trendered,
+wh3297
+tC
+wh3297
+tcommands
+wh3297
+tare
+n16039 0
+V442858
+H72000
+tissued
+wh4115
+tand
+wh4115
+tthese
+wh4115
+tdo
+wh4115
 tnot
-wh3326
-timplemented
-wh3326
-tin
-n16242 0
-V508776
+wh4115
+tincrement
+wh4115
+tthe
+wh4115
+tinternal
+wh4115
+tdra
+H300885
+twing
+wh4115
+tposi
+Chy
+h3663
+n16039 0
+V458897
 H72000
-tgropdf.zig
-wh4048
-tand
-wh4048
-tthat
-wh4048
+ttion
+wh5138
+tof
+wh5138
+tthe
+wh5139
+tback
+H147794
+tend
+wh5139
+tde
+H178926
+tvice.
+wh5139
+tThe
+wh5139
+tsame
+wh5139
 tis
-wh4048
+wh5139
+ttrue
+wh5139
+tfor
+wh5139
 twh
-H186818
-ty
-wh4048
-tthe
-wh4048
-tsecond
-wh4048
-t'-'
-wh4048
-tis
-wh4047
-trendered
-wh4047
-te
-H322116
-txactly
-n16242 0
-V525018
+wh5139
+tcom
+Chy
+h3663
+n16039 0
+V474936
 H72000
-tabo
-H87719
+tmands,
+wh4266
+twhich
+wh4266
+tincrement
+wh4266
+tthe
+wh4265
+tx
+wh4265
+tdra
+H228496
+twing
+wh4265
+tposition
+wh4265
+tin
+wh4265
+ta
+wh4265
+trelati
+H338781
 tv
-H93054
+H344116
 te
+n16039 0
+V490975
+H72000
+tw
+H79832
+tay
+H89501
+t.
+wh2935
+tBut
+wh2935
+tin
+wh2935
+torder
+wh2935
+tto
+wh2935
+tbe
+wh2935
+table
+wh2935
+tto
+wh2935
+tcompute
+wh2935
+tthe
+wh2935
+tne
+H276525
+tw
+wh2935
+tabsolute
+wh2935
+tposi
+Chy
+h3663
+n16039 0
+V507014
+H72000
+ttion,
+wh2750
+twe
+wh2750
+tneed
+wh2750
+tto
+wh2750
+tkno
+H161243
+tw
 wh2750
 tthe
 wh2750
-Cfi
-h6116
-trst
+tcurrent
 wh2750
-tone
-wh2750
-tand
-wh2750
-tit
-wh2750
-tseems
-wh2750
-tas
-wh2750
-tthough
-wh2750
-tthere
-wh2750
-tis
-wh2750
-tno
-wh2750
-tsecond.
-n16242 0
+tposition.
+n16039 0
+V523053
+H97000
+V523053
+H97000
+x X ps: exec decornone
+tPDF
+wh2945
+ton
+wh2945
+tthe
+wh2945
+tother
+wh2945
+thand
+wh2945
+thas
+wh2945
+ta
+wh2945
+tte
+H233544
+txt
+wh2945
+trendering
+wh2944
+tcommand
+wh2944
+tTj,
+n16039 0
 x X pdf: marksuspend
-V537018
+V535053
 H72000
 s10000
-V537018
+V535053
 H72000
 x X ps: exec decornone
 n12000 0
@@ -755,6 +712,247 @@ t-
 h918
 v619
 t1
+h918
+V558381
+t-
+v619
+n12000 0
+V595000
+p2
+V54000
+H72000
+x font 5 TR
+f5
+s11000
+V54000
+H72000
+x X ps: exec 0 setlinejoin
+V54000
+H72000
+x X ps: exec 0 setlinecap
+n12000 0
+s10500
+V54000
+H72000
+tSv
+H82930
+ten
+wh2625
+tSchober
+n12000 0
+V54000
+H210500
+n12000 0
+s9000
+V54000
+H273580
+tGR
+H285721
+tOPDF
+H308005
+t.ZIG
+wh2250
+tTEST
+n12000 0
+V58000
+H72000
+Dt 500 0
+H72000
+v250
+Dl 277000 0
+Dt 500 0
+H349000
+n12000 0
+x X pdf: markrestart
+s11000
+V90000
+H72000
+twhich
+wh5205
+tincreases
+wh5206
+tthe
+wh5206
+tdra
+H182140
+twing
+wh5206
+tposition
+wh5206
+tautomatically
+H309174
+t,
+wh5206
+tb
+H322410
+tut
+wh5206
+twe
+n16039 0
+V106039
+H72000
+tha
+H82164
+tv
+H87499
+te
+wh3064
+tno
+wh3064
+tw
+H117343
+tay
+wh3064
+tto
+wh3064
+tquery
+wh3063
+tthe
+wh3063
+tcurrent
+wh3063
+tposition
+wh3063
+tas
+wh3063
+tthat
+wh3063
+tis
+wh3063
+tan
+wh3063
+tinternal
+n16039 0
+V122078
+H72000
+tstate
+wh2750
+tof
+wh2750
+tthe
+wh2750
+trenderer
+H159219
+t,
+wh2750
+twhich
+wh2750
+tli
+H200194
+tv
+H205529
+tes
+wh2750
+tin
+wh2750
+tthe
+wh2750
+tvie
+H258109
+twer
+H273993
+t.
+n16039 0
+V138117
+H97000
+V138117
+H97000
+x X ps: exec decornone
+tThere
+wh4846
+tw
+H135330
+tas
+wh4846
+tno
+wh4846
+tw
+H173017
+tay
+wh4846
+taround
+wh4847
+timplementing
+wh4847
+trelati
+H311934
+tv
+H317269
+te
+wh4847
+tposi
+Chy
+h3663
+n16039 0
+V154156
+H72000
+ttioning
+wh4696
+tin
+wh4696
+tgropdf.zig.
+wh4696
+tThat
+wh4696
+tmeant,
+wh4696
+twe
+wh4696
+tneed
+wh4696
+tto
+wh4695
+tread
+wh4695
+tthe
+wh4695
+tfont
+n16039 0
+V170195
+H72000
+tdescription
+wh10048
+Cfi
+h6116
+tles
+wh10048
+tresiding
+wh10048
+tin
+wh10048
+t/usr/share/grof
+H287290
+tf/current/font/
+n16039 0
+V186234
+H72000
+tde
+H82109
+tvpdf/<font
+wh2750
+tname>
+n16039 0
+x X pdf: marksuspend
+V198234
+H72000
+s10000
+V198234
+H72000
+x X ps: exec decornone
+n12000 0
+V198234
+H72000
+V198234
+H72000
+x X ps: exec decornone
+n12000 0
+s11000
+V558381
+H203169
+t-
+h918
+v619
+t2
 h918
 V558381
 t-
