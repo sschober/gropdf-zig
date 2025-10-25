@@ -157,6 +157,7 @@ pub fn main() !u8 {
                     } else {
                         try curTextObject.?.addWord(line[1..]);
                     }
+                    curTextObject.?.skipLastWord();
                 },
                 .s => {
                     const fontSize = try std.fmt.parseInt(usize, line[1..], 10);

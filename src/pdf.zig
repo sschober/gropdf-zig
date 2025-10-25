@@ -113,6 +113,7 @@ pub const TextObject = struct {
     f: FixPoint = FixPoint{},
     /// inter-word whitespace
     w: FixPoint = FixPoint{},
+    skip_last_word: bool = false,
     /// initialze a new text object and its members
     pub fn init(allocator: Allocator) !*TextObject {
         const res = try allocator.create(TextObject);
@@ -144,13 +145,19 @@ pub const TextObject = struct {
         try self.addComment(try std.fmt.allocPrint(self.allocator, "H: {f} ", .{h}));
         try self.flushPos();
     }
+    pub fn skipLastWord(self: *TextObject) void {
+        self.skip_last_word = true;
+    }
     pub fn addE(self: *TextObject, h: FixPoint, glyph_widths: [257]usize, font_size: usize) !void {
         var word_length = FixPoint{};
-        for (self.curLine.items) |c| {
-            const glyph_width = glyph_widths[c];
-            const adjusted = FixPoint.from(glyph_width * font_size, UNITSCALE);
-            word_length = word_length.addTo(adjusted);
+        if (!self.skip_last_word) {
+            for (self.curLine.items) |c| {
+                const glyph_width = glyph_widths[c];
+                const adjusted = FixPoint.from(glyph_width * font_size, UNITSCALE);
+                word_length = word_length.addTo(adjusted);
+            }
         }
+        self.skip_last_word = false;
         const offset = word_length.addTo(h);
         self.e = self.e.addTo(offset);
         try self.newLine();
