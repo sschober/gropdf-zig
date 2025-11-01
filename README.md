@@ -38,6 +38,9 @@ The resulting PDF has some, let's call them inefficiencies. A lot of similar
 commands are issued in sequence, which could be compacted. As a lot of this is
 already present in the input, I chose to ignore it at the moment.
 
+We could reduce the resulting PDF file size by using zflate compression, but at
+the moment I do not see any need for this.
+
 ## Usage
 
 I provide a sample input file, `input.mom`, which contains `groff` source
