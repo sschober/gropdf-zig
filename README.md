@@ -21,29 +21,33 @@ Motivated by the approachability of `gropdf.pl` (
 [sources](https://cgit.git.savannah.gnu.org/cgit/groff.git/tree/src/devices/gropdf/gropdf.pl), 
 [man page](https://man7.org/linux/man-pages/man1/gropdf.1.html)
 and the PDF spec, or to be exact, adobe's 
-[pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf), I started this little experiment to see
+[pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf),
+I started this little experiment to see
 if I could implement a reasonable subset of `groff_out(5)`.
 
 > [!WARNING]
 > This is **very experimental** software. No guarantee is provided, that it will
 > produce sensible output, will not crash and or stay stable in its behaviour.
 
-At the moment, we implement a small subset of the `grout` language only:
+At the moment, we implement a _small subset_ of the `grout` language only:
 
-* We support only a single font, "Times New Roman", as that can be referenced very
-easily in PDF, without the need to embed it.
+* We support only a single font, "Times New Roman", as that can be
+referenced very easily in PDF, without the need to embed it.
 * No drawing commands are interpreted.
 
-The resulting PDF has some, let's call them inefficiencies. A lot of similar
-commands are issued in sequence, which could be compacted. As a lot of this is
-already present in the input, I chose to ignore it at the moment.
+Next to obviously missing elements like header rules, which are
+created using drawing commands, the resulting PDF has some, let's
+call them inefficiencies. A lot of similar commands are issued in
+sequence, which could be compacted. As a lot of this is already
+present in the input, I chose to ignore it at the moment.
 
 ## Usage
 
-I provide a sample input file, `input.mom`, which contains `groff` source
-code using the `mom` package.
+We provide a sample input file, `input.mom`, which contains `groff`
+source code using the `mom` package.
 
-This input file can be rendered to a PDF using the following `groff` command:
+This input file can be rendered to a PDF using the following `groff`
+invocation:
 
 ```bash
 groff -Tpdf -mom input.mom > orig.pdf
