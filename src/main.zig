@@ -92,29 +92,23 @@ pub fn main() !u8 {
                                     continue;
                                 }
                                 const font_name = it.next().?;
+                                var pdf_font_num: usize = 0;
                                 if (std.mem.eql(u8, "TR", font_name)) {
-                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-                                    try font_map.put(font_num, pdfFontNum);
-                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TR");
-                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
                                 } else if (std.mem.eql(u8, "TB", font_name)) {
-                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-                                    try font_map.put(font_num, pdfFontNum);
-                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TB");
-                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
                                 } else if (std.mem.eql(u8, "TI", font_name)) {
-                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-                                    try font_map.put(font_num, pdfFontNum);
-                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TI");
-                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
                                 } else if (std.mem.eql(u8, "CR", font_name)) {
-                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Courier);
-                                    try font_map.put(font_num, pdfFontNum);
-                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "CR");
-                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Courier);
                                 } else {
                                     std.debug.print("warning: unsupported font: {s}", .{font_name});
+                                    continue;
                                 }
+                                std.debug.print("adding {s} as {d} to font map", .{ font_name, pdf_font_num });
+                                try font_map.put(font_num, pdf_font_num);
+                                const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), font_name);
+                                try font_glyph_widths_maps.put(pdf_font_num, tr_glyph_map);
                             },
                             .res => {
                                 // resolution control command
