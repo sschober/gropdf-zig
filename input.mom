@@ -25,12 +25,12 @@ The positioning in grout is an interessting topic, as it seems to be
 absolute, at first glance. Meaning, there are H and V absolute
 coordinates given through all of the document. 
 .PP
-But, when ligatures are to be rendered, C commands are issued and
-these do not increment the internal drawing position of the backend
-device. The same is true for wh commands, which increment the x
-drawing position in a relative way. But in order to be able to
-compute the new absolute position, we need to know the current
-position.
+But, when ligatures are to be rendered,  \*[CODE]C \*[CODE X]
+commands are issued and these do not increment the internal drawing
+position of the backend device. The same is true for wh commands,
+which increment the x drawing position in a relative way. But in
+order to be able to compute the new absolute position, we need to
+know the current position.
 .PP
 PDF on the other hand has a text rendering command Tj, which
 increases the drawing position automatically, but we have no way to

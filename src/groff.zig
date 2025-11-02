@@ -65,12 +65,44 @@ pub const zPosition = struct {
     }
 };
 
+/// custom error for groff path problems
+const GroffPathError = error{FontNotFound} || Allocator.Error;
+
+/// try to locate given font under a given set of search candidate paths
+pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
+    const search_paths =
+        [_]String{
+            "/usr/share/groff/current", // standard unix and linux path
+            "/usr/local/share/groff/current", // standard source install unix and linux path
+            "/opt/homebrew/share/groff/current", // macos homebrew install path
+        };
+    var search_path: String = "";
+    for (search_paths) |path| {
+        const stat = std.fs.cwd().statFile(path) catch {
+            continue;
+        };
+        switch (stat.kind) {
+            .directory => {
+                std.debug.print("found: {s}\n", .{path});
+                search_path = path;
+                break;
+            },
+            else => {},
+        }
+    }
+    if (search_path.len > 0) {
+        // TODO look if font is really there, not only dir
+        return std.fmt.allocPrint(gpa, "{s}/font/devpdf/{s}", .{ search_path, font_name });
+    }
+    return GroffPathError.FontNotFound;
+}
 /// reads the groff font descriptor file as defined in `groff_font(5)`. parses
 /// the charset section of that file to extract the width of each glyph. uses
 /// the index column to store the width in an array.
 pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
-    const path_font_desc = try std.fmt.allocPrint(gpa, "/usr/share/groff/current/font/devpdf/{s}", .{font_name});
-    var font_desc_TR = try std.fs.openFileAbsolute(path_font_desc, .{ .mode = .read_only });
+    const groff_path = try locateFont(gpa, font_name);
+    var font_desc_TR =
+        try std.fs.openFileAbsolute(groff_path, .{ .mode = .read_only });
     defer font_desc_TR.close();
     var read_buf: [4096]u8 = undefined;
     var font_desc_TR_reader = font_desc_TR.reader(&read_buf);

@@ -27,10 +27,6 @@ pub fn main() !u8 {
     const stderr = &stderr_writer.interface;
     const stdout = &stdout_writer.interface;
 
-    //
-    //
-    //
-
     var stdin_buffer: [8096]u8 = undefined;
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
     var reader = &stdin_reader.interface;
@@ -108,6 +104,11 @@ pub fn main() !u8 {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
                                     try fontMap.put(fontNum, pdfFontNum);
                                     const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TI");
+                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
+                                } else if (std.mem.eql(u8, "CR", fontName)) {
+                                    const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Courier);
+                                    try fontMap.put(fontNum, pdfFontNum);
+                                    const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "CR");
                                     try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
                                 }
                             },
