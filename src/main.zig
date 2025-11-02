@@ -19,12 +19,6 @@ pub fn main() !u8 {
 
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-
-    // put empty buffer into stderr writer to make it unbuffered
-    var stderr_buffer: [0]u8 = undefined;
-    var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
-
-    const stderr = &stderr_writer.interface;
     const stdout = &stdout_writer.interface;
 
     var stdin_buffer: [8096]u8 = undefined;
@@ -33,101 +27,116 @@ pub fn main() !u8 {
 
     var doc: ?pdf.Document = null;
     // maps grout font numbers to pdf font numbers
-    var fontMap = std.AutoHashMap(usize, usize).init(allocator.allocator());
-    var fontGlyphMap = std.AutoHashMap(usize, [257]usize).init(allocator.allocator());
-    var curPdfFontNum: ?usize = null;
-    var curFontSize: ?usize = null;
-    var lineNum: usize = 0;
+    var font_map =
+        std.AutoHashMap(usize, usize).init(allocator.allocator());
+    // maps pdf font numbers to glyph widths maps
+    var font_glyph_widths_maps =
+        std.AutoHashMap(usize, [257]usize).init(allocator.allocator());
+    var cur_pdf_font_num: ?usize = null;
+    var cur_font_size: ?usize = null;
+    var cur_line_num: usize = 0;
     // we use optionals here, as zig does not allow null pointers
-    var curPage: ?*pdf.Page = null;
-    var curX: usize = 0;
-    var curY: usize = 0;
-    var curTextObject: ?*pdf.TextObject = null;
+    var cur_page: ?*pdf.Page = null;
+    var cur_x: usize = 0;
+    var cur_y: usize = 0;
+    var cur_text_object: ?*pdf.TextObject = null;
     // read loop to parse and dispatch groff out input
-    while (reader.takeDelimiter('\n')) |lineOpt| {
-        if (lineOpt) |line| {
+    while (reader.takeDelimiter('\n')) |opt_line| {
+        if (opt_line) |line| {
             if (line.len == 0) {
                 break;
             }
-            lineNum += 1;
-            //try stderr.print("{d}\n", .{lineNum});
+            cur_line_num += 1;
             if (line[0] == '+') {
+                //std.debug.print("{d}: ignoring + line\n", .{lineNum});
                 continue;
             }
-            const cmdStr = line[0..1];
-            const cmd = std.meta.stringToEnum(groff.Out, cmdStr).?;
+            const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
             switch (cmd) {
                 .p => {
-                    curPage = try doc.?.addPage();
-                    if (curX > 0) {
-                        curPage.?.x = curX;
+                    // begin new page
+                    // sample: p 2
+                    cur_page = try doc.?.addPage();
+                    if (cur_x > 0) {
+                        cur_page.?.x = cur_x;
                     }
-                    if (curY > 0) {
-                        curPage.?.y = curY;
+                    if (cur_y > 0) {
+                        cur_page.?.y = cur_y;
                     }
-                    curTextObject = curPage.?.contents.textObject;
+                    cur_text_object = cur_page.?.contents.textObject;
                 },
                 .f => {
-                    const fontNumStr = line[1..];
-                    const fontNum = try std.fmt.parseUnsigned(usize, fontNumStr, 10);
-                    curPdfFontNum = fontMap.get(fontNum);
-                    try doc.?.addFontRefTo(curPage.?, curPdfFontNum.?);
-                    try curTextObject.?.selectFont(curPdfFontNum.?, curFontSize orelse 11);
+                    // select font mounted at pos
+                    // sample: f5
+                    const font_num = try std.fmt.parseUnsigned(usize, line[1..], 10);
+                    cur_pdf_font_num = font_map.get(font_num);
+                    try doc.?.addFontRefTo(cur_page.?, cur_pdf_font_num.?);
+                    try cur_text_object.?.selectFont(cur_pdf_font_num.?, cur_font_size orelse 11);
                 },
                 .x => {
-                    // x X papersize
+                    // device control command
+                    // sample: x X papersize
                     if (line.len > 2) {
                         var it = std.mem.splitScalar(u8, line[2..], ' ');
-                        const subCmd = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
-                        switch (subCmd) {
+                        const sub_cmd_enum = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
+                        switch (sub_cmd_enum) {
                             .init => {
+                                // begin document
                                 doc = try pdf.Document.init(allocator.allocator());
                             },
                             .font => {
-                                const fontNumStr = it.next().?;
-                                const fontNum = try std.fmt.parseUnsigned(usize, fontNumStr, 10);
-                                if (fontMap.contains(fontNum)) {
+                                // mount font position pos
+                                // sample: x font 5 TR
+                                const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
+                                if (font_map.contains(font_num)) {
                                     continue;
                                 }
-                                const fontName = it.next().?;
-                                if (std.mem.eql(u8, "TR", fontName)) {
+                                const font_name = it.next().?;
+                                if (std.mem.eql(u8, "TR", font_name)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-                                    try fontMap.put(fontNum, pdfFontNum);
+                                    try font_map.put(font_num, pdfFontNum);
                                     const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TR");
-                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
-                                } else if (std.mem.eql(u8, "TB", fontName)) {
+                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                } else if (std.mem.eql(u8, "TB", font_name)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-                                    try fontMap.put(fontNum, pdfFontNum);
+                                    try font_map.put(font_num, pdfFontNum);
                                     const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TB");
-                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
-                                } else if (std.mem.eql(u8, "TI", fontName)) {
+                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                } else if (std.mem.eql(u8, "TI", font_name)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-                                    try fontMap.put(fontNum, pdfFontNum);
+                                    try font_map.put(font_num, pdfFontNum);
                                     const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "TI");
-                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
-                                } else if (std.mem.eql(u8, "CR", fontName)) {
+                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                } else if (std.mem.eql(u8, "CR", font_name)) {
                                     const pdfFontNum = try doc.?.addStandardFont(pdf.StandardFonts.Courier);
-                                    try fontMap.put(fontNum, pdfFontNum);
+                                    try font_map.put(font_num, pdfFontNum);
                                     const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), "CR");
-                                    try fontGlyphMap.put(pdfFontNum, tr_glyph_map);
+                                    try font_glyph_widths_maps.put(pdfFontNum, tr_glyph_map);
+                                } else {
+                                    std.debug.print("warning: unsupported font: {s}", .{font_name});
                                 }
                             },
                             .res => {
+                                // resolution control command
+                                // sample:
                                 const arg = it.next().?;
                                 const res = try std.fmt.parseUnsigned(usize, arg, 10);
                                 const unitsize = res / 72;
-                                try stderr.print("setting unit scale to {d}\n", .{unitsize});
+                                //try stderr.print("setting unit scale to {d}\n", .{unitsize});
                                 pdf.UNITSCALE = unitsize;
                             },
                             .T => {
+                                // typesetter control command
+                                // sample: x T pdf
                                 const arg = it.next().?;
                                 if (std.mem.indexOf(u8, arg, "pdf") != 0) {
-                                    try stderr.print("unexpected output type: {s}", .{arg});
+                                    std.debug.print("error: unexpected output type: {s}", .{arg});
                                     return 1;
                                 }
                             },
                             .X => {
-                                // x X papersize=421000z,595000z
+                                // X escape control command
+                                // sample: x X papersize=421000z,595000z
                                 const arg = it.next().?;
                                 if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
                                     if (0 == idxPapersize) {
@@ -137,23 +146,23 @@ pub fn main() !u8 {
                                             const zX = itZSizes.next().?;
                                             const zPosX = try groff.zPosition.fromString(zX);
                                             const zPosXScaled = fixPointFromZPos(zPosX);
-                                            if (zPosXScaled.integer != curPage.?.x) {
-                                                try stderr.print("setting x width from {d} to {d}\n", .{ curPage.?.x, zPosXScaled.integer });
-                                                curPage.?.x = zPosXScaled.integer;
-                                                curX = zPosXScaled.integer;
+                                            if (zPosXScaled.integer != cur_page.?.x) {
+                                                cur_page.?.x = zPosXScaled.integer;
+                                                cur_x = zPosXScaled.integer;
                                             }
                                             const zY = itZSizes.next().?;
                                             const zPosY = try groff.zPosition.fromString(zY);
                                             const zPosYScaled = fixPointFromZPos(zPosY);
-                                            if (zPosYScaled.integer != curPage.?.y) {
-                                                try stderr.print("setting y width from {d} to {d}\n", .{ curPage.?.y, zPosYScaled.integer });
-                                                curPage.?.y = zPosYScaled.integer;
-                                                curY = zPosYScaled.integer;
+                                            if (zPosYScaled.integer != cur_page.?.y) {
+                                                cur_page.?.y = zPosYScaled.integer;
+                                                cur_y = zPosYScaled.integer;
                                             }
                                         }
                                     } else {
-                                        try stderr.print("unexpected index: {d}", .{idxPapersize});
+                                        std.debug.print("{d}: warning: unexpected index: {d}\n", .{ cur_line_num, idxPapersize });
                                     }
+                                } else {
+                                    std.debug.print("{d}: warning: unkown x X subcommand: {s}\n", .{ cur_line_num, arg });
                                 }
                             },
                             else => {},
@@ -161,64 +170,76 @@ pub fn main() !u8 {
                     }
                 },
                 .C => {
+                    // typeset glyph of special character id
+                    // sample: Chy
                     if (std.mem.eql(u8, line[1..3], "hy")) {
                         // TODO replace `-` with real glyph from font
-                        try curTextObject.?.addWordWithoutMove("-");
+                        try cur_text_object.?.addWordWithoutMove("-");
                     } else if (std.mem.eql(u8, line[1..3], "lq")) {
-                        try curTextObject.?.addWordWithoutMove("\"");
+                        try cur_text_object.?.addWordWithoutMove("\"");
                     } else if (std.mem.eql(u8, line[1..3], "rq")) {
-                        try curTextObject.?.addWordWithoutMove("\"");
+                        try cur_text_object.?.addWordWithoutMove("\"");
                     } else {
-                        try curTextObject.?.addWordWithoutMove(line[1..]);
+                        std.debug.print("{d}: warning: unhandled character sequence: {s}\n", .{ cur_line_num, line[1..3] });
+                        try cur_text_object.?.addWordWithoutMove(line[1..]);
                     }
                 },
                 .s => {
+                    // set type size
+                    // sample: s11000
                     const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
-                    curFontSize = fontSize / pdf.UNITSCALE;
-                    try curTextObject.?.selectFont(curPdfFontNum.?, fontSize / pdf.UNITSCALE);
+                    cur_font_size = fontSize / pdf.UNITSCALE;
+                    try cur_text_object.?.selectFont(cur_pdf_font_num.?, fontSize / pdf.UNITSCALE);
                 },
                 .t => {
-                    const glyph_map = fontGlyphMap.get(curPdfFontNum.?).?;
-                    try curTextObject.?.addWord(line[1..], glyph_map, curFontSize.?);
+                    // typeset word
+                    // sample: thello
+                    const glyph_map = font_glyph_widths_maps.get(cur_pdf_font_num.?).?;
+                    try cur_text_object.?.addWord(line[1..], glyph_map, cur_font_size.?);
                 },
                 .w => {
+                    // interword space
+                    // sample: wh2750
                     if (line[1] == 'h') {
                         const h = try groff.zPosition.fromString(line[2..]);
-                        try curTextObject.?.addE(fixPointFromZPos(h));
+                        try cur_text_object.?.addE(fixPointFromZPos(h));
                     }
                 },
                 .n => {
-                    try curTextObject.?.newLine();
+                    // new line command
+                    // sample: n12000 0
+                    try cur_text_object.?.newLine();
                 },
                 .V => {
                     // vertical absolute positioning
-                    // V151452
+                    // sample: V151452
                     const v_z = try groff.zPosition.fromString(line[1..]);
                     var v = fixPointFromZPos(v_z);
                     //try stderr.print("v_y: {d} v: {f} ", .{ v_z.v, v });
-                    if (v.integer <= curPage.?.y) {
+                    if (v.integer <= cur_page.?.y) {
                         //-v.integer = curPage.?.y - v.integer;
-                        v = v.subtractFrom(curPage.?.y);
+                        v = v.subtractFrom(cur_page.?.y);
                         //try stderr.print("y - v: {f}\n", .{v});
-                        try curTextObject.?.setF(v);
+                        try cur_text_object.?.setF(v);
                     }
                 },
                 .h => {
+                    // horizontal relative positioning
+                    // sample: h918
                     const h = try groff.zPosition.fromString(line[1..]);
-                    try curTextObject.?.addE(fixPointFromZPos(h));
+                    try cur_text_object.?.addE(fixPointFromZPos(h));
                 },
                 .v => {
                     // we ignore `v` as it seems the absolute positioning commands are enough
                 },
                 .H => {
                     // horizontal absolute positioning
-                    // H72000
-                    // H97000
+                    // sample: H72000
                     const h_z = try groff.zPosition.fromString(line[1..]);
-                    try curTextObject.?.setE(fixPointFromZPos(h_z));
+                    try cur_text_object.?.setE(fixPointFromZPos(h_z));
                 },
                 else => {
-                    try stderr.print("{d}: unknown command: {s}\n", .{ lineNum, line });
+                    std.debug.print("{d}: warning: unknown command: {s}\n", .{ cur_line_num, line });
                 },
             }
             try stdout.flush();

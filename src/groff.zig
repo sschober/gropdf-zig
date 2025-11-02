@@ -1,6 +1,8 @@
 const std = @import("std");
 
 const String = []const u8;
+/// a glyph map maps indices corresponding to ascii codes to glyph widths. each
+/// font has its separate map
 const GlyphMap = [257]usize;
 const Allocator = std.mem.Allocator;
 
@@ -36,13 +38,17 @@ pub const Out = enum {
     n,
 };
 
-/// sub commands for X command
+/// sub commands for x/device control commands
 pub const XSubCommand = enum {
     /// typesetter control command - choses which type of output should be
     /// produced (ps, pdf, or latin1) - we only support `pdf` obviously
     T,
+    /// resolution control command
+    /// sample: x X res 72000 1 1
     res,
+    /// init control command
     init,
+    /// mount font at position
     font,
     /// escape control - side channel to us from groff, used to communicate
     /// meta data like papersize
