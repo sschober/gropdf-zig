@@ -3,7 +3,7 @@ const std = @import("std");
 const String = []const u8;
 /// a glyph map maps indices corresponding to ascii codes to glyph widths. each
 /// font has its separate map
-const GlyphMap = [257]usize;
+pub const GlyphMap = [257]usize;
 const Allocator = std.mem.Allocator;
 
 /// groff out language elements - all single characters, some take

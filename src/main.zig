@@ -4,11 +4,40 @@ const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
 const FixPoint = @import("FixPoint.zig");
+const String = []const u8;
+const Allocator = std.mem.Allocator;
 
 /// helper function translating a groff z position coordinate into a fix point
 /// numer scaled by the pdf unit scale
 fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
     return FixPoint.from(zp.v, pdf.UNITSCALE);
+}
+
+fn handle_font_cmd(
+    allocator: Allocator,
+    font_map: *std.AutoHashMap(usize, usize),
+    font_glyph_widths_maps: *std.AutoHashMap(usize, groff.GlyphMap),
+    doc: *pdf.Document,
+    font_name: String,
+    font_num: usize,
+) !void {
+    var pdf_font_num: usize = 0;
+    if (std.mem.eql(u8, "TR", font_name)) {
+        pdf_font_num = try doc.addStandardFont(pdf.StandardFonts.Times_Roman);
+    } else if (std.mem.eql(u8, "TB", font_name)) {
+        pdf_font_num = try doc.addStandardFont(pdf.StandardFonts.Times_Bold);
+    } else if (std.mem.eql(u8, "TI", font_name)) {
+        pdf_font_num = try doc.addStandardFont(pdf.StandardFonts.Times_Italic);
+    } else if (std.mem.eql(u8, "CR", font_name)) {
+        pdf_font_num = try doc.addStandardFont(pdf.StandardFonts.Courier);
+    } else {
+        std.debug.print("warning: unsupported font: {s}\n", .{font_name});
+        return;
+    }
+    std.debug.print("adding {s} as pdf font num {d} to font map\n", .{ font_name, pdf_font_num });
+    try font_map.put(font_num, pdf_font_num);
+    const glyph_map = try groff.readGlyphMap(allocator, font_name);
+    try font_glyph_widths_maps.put(pdf_font_num, glyph_map);
 }
 
 /// reads groff output (groff_out(5)) and produces a PDF 1.1 compatible file
@@ -71,6 +100,7 @@ pub fn main() !u8 {
                     const font_num = try std.fmt.parseUnsigned(usize, line[1..], 10);
                     cur_pdf_font_num = font_map.get(font_num);
                     try doc.?.addFontRefTo(cur_page.?, cur_pdf_font_num.?);
+                    std.debug.print("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ cur_line_num, font_num, cur_pdf_font_num.?, cur_font_size orelse 11 });
                     try cur_text_object.?.selectFont(cur_pdf_font_num.?, cur_font_size orelse 11);
                 },
                 .x => {
@@ -92,23 +122,7 @@ pub fn main() !u8 {
                                     continue;
                                 }
                                 const font_name = it.next().?;
-                                var pdf_font_num: usize = 0;
-                                if (std.mem.eql(u8, "TR", font_name)) {
-                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-                                } else if (std.mem.eql(u8, "TB", font_name)) {
-                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-                                } else if (std.mem.eql(u8, "TI", font_name)) {
-                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-                                } else if (std.mem.eql(u8, "CR", font_name)) {
-                                    pdf_font_num = try doc.?.addStandardFont(pdf.StandardFonts.Courier);
-                                } else {
-                                    std.debug.print("warning: unsupported font: {s}", .{font_name});
-                                    continue;
-                                }
-                                std.debug.print("adding {s} as {d} to font map", .{ font_name, pdf_font_num });
-                                try font_map.put(font_num, pdf_font_num);
-                                const tr_glyph_map = try groff.readGlyphMap(allocator.allocator(), font_name);
-                                try font_glyph_widths_maps.put(pdf_font_num, tr_glyph_map);
+                                try handle_font_cmd(allocator.allocator(), &font_map, &font_glyph_widths_maps, &doc.?, font_name, font_num);
                             },
                             .res => {
                                 // resolution control command
@@ -197,6 +211,27 @@ pub fn main() !u8 {
                     if (line[1] == 'h') {
                         const h = try groff.zPosition.fromString(line[2..]);
                         try cur_text_object.?.addE(fixPointFromZPos(h));
+                    } else if (line[1] == 'x') {
+                        var it = std.mem.splitScalar(u8, line[3..], ' ');
+                        const subCmd = it.next().?;
+                        if (std.mem.eql(u8, subCmd, "font")) {
+                            // wx font 6 CR
+                            const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
+                            const font_name = it.next().?;
+                            try cur_text_object.?.newLine();
+                            try handle_font_cmd(allocator.allocator(), &font_map, &font_glyph_widths_maps, &doc.?, font_name, font_num);
+                        } else {
+                            std.debug.print("{d}: warning: unknown x sub command: {s}", .{ cur_line_num, subCmd });
+                        }
+                    } else if (line[1] == 'f') {
+                        // wf5
+                        // TODO factor out into function
+                        const font_num = try std.fmt.parseUnsigned(usize, line[2..], 10);
+                        cur_pdf_font_num = font_map.get(font_num);
+                        try cur_text_object.?.newLine();
+                        try doc.?.addFontRefTo(cur_page.?, cur_pdf_font_num.?);
+                        std.debug.print("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ cur_line_num, font_num, cur_pdf_font_num.?, cur_font_size orelse 11 });
+                        try cur_text_object.?.selectFont(cur_pdf_font_num.?, cur_font_size orelse 11);
                     }
                 },
                 .n => {

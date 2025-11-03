@@ -45,6 +45,7 @@ pub const StandardFonts = enum {
             .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1",
             .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1",
             .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1",
+            .Courier => return "/BaseFont /Courier\n/Subtype /Type1",
             else => return "",
         }
     }
@@ -438,7 +439,8 @@ pub const Document = struct {
         return self.addFont(stdFnt.string());
     }
 
-    /// add a font to the document by specifing its name
+    /// add a font to the document by specifing its name returns the index of
+    /// the font into our internal font list
     pub fn addFont(self: *Document, f: String) !usize {
         const objIdx = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
@@ -451,7 +453,12 @@ pub const Document = struct {
     /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
         const font = self.fonts.items[fNum];
-        try page.resources.append(font.objNum);
+        std.debug.print("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
+        if (fNum >= page.resources.items.len) {
+            try page.resources.append(font.objNum);
+        } else {
+            std.debug.print("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });
+        }
     }
 
     /// add a new and empty page to the document and return a pointer to it
