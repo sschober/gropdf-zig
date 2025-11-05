@@ -21,7 +21,8 @@ font_map: std.AutoHashMap(usize, usize),
 
 // maps pdf font numbers to glyph widths maps
 font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
-
+is_debug: bool = false,
+is_warn: bool = false,
 // transpilation state we use optionals here, as zig does not allow null pointers
 doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
@@ -34,13 +35,15 @@ cur_y: usize = 0,
 
 /// initialize a Transpiler object, provide a `Reader` object for grout input and
 /// a `Writer` for writing pdf to
-pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer) Self {
+pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer, is_debug: bool, is_warn: bool) Self {
     return Self{
         .allocator = allocator, //
         .reader = reader,
         .writer = writer,
         .font_map = std.AutoHashMap(usize, usize).init(allocator),
         .font_glyph_widths_maps = std.AutoHashMap(usize, groff.GlyphMap).init(allocator),
+        .is_debug = is_debug,
+        .is_warn = is_warn,
     };
 }
 
@@ -66,15 +69,25 @@ fn handle_font_cmd(
     } else if (std.mem.eql(u8, "CR", font_name)) {
         pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Courier);
     } else {
-        std.debug.print("warning: unsupported font: {s}\n", .{font_name});
+        self.warn("warning: unsupported font: {s}\n", .{font_name});
         return;
     }
-    std.debug.print("adding {s} as pdf font num {d} to font map\n", .{ font_name, pdf_font_num });
+    self.dbg("adding {s} as pdf font num {d} to font map\n", .{ font_name, pdf_font_num });
     try self.font_map.put(font_num, pdf_font_num);
     const glyph_map = try groff.readGlyphMap(self.allocator, font_name);
     try self.font_glyph_widths_maps.put(pdf_font_num, glyph_map);
 }
 
+fn dbg(self: Self, comptime fmt: []const u8, args: anytype) void {
+    if (self.is_debug) {
+        std.debug.print(fmt, args);
+    }
+}
+fn warn(self: Self, comptime fmt: []const u8, args: anytype) void {
+    if (self.is_warn) {
+        std.debug.print(fmt, args);
+    }
+}
 /// read grout from `reader` and output pdf to `writer`
 pub fn transpile(self: *Self) !u8 {
     while (self.reader.takeDelimiter('\n')) |opt_line| {
@@ -107,7 +120,7 @@ pub fn transpile(self: *Self) !u8 {
                     const font_num = try std.fmt.parseUnsigned(usize, line[1..], 10);
                     self.cur_pdf_font_num = self.font_map.get(font_num);
                     try self.doc.?.addFontRefTo(self.cur_page.?, self.cur_pdf_font_num.?);
-                    std.debug.print("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
+                    self.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
                     try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
                 },
                 .x => {
@@ -145,7 +158,7 @@ pub fn transpile(self: *Self) !u8 {
                                 // sample: x T pdf
                                 const arg = it.next().?;
                                 if (std.mem.indexOf(u8, arg, "pdf") != 0) {
-                                    std.debug.print("error: unexpected output type: {s}", .{arg});
+                                    self.dbg("error: unexpected output type: {s}", .{arg});
                                     return 1;
                                 }
                             },
@@ -174,10 +187,10 @@ pub fn transpile(self: *Self) !u8 {
                                             }
                                         }
                                     } else {
-                                        std.debug.print("{d}: warning: unexpected index: {d}\n", .{ self.cur_line_num, idxPapersize });
+                                        self.warn("{d}: warning: unexpected index: {d}\n", .{ self.cur_line_num, idxPapersize });
                                     }
                                 } else {
-                                    std.debug.print("{d}: warning: unkown x X subcommand: {s}\n", .{ self.cur_line_num, arg });
+                                    self.warn("{d}: warning: unkown x X subcommand: {s}\n", .{ self.cur_line_num, arg });
                                 }
                             },
                             else => {},
@@ -195,7 +208,7 @@ pub fn transpile(self: *Self) !u8 {
                     } else if (std.mem.eql(u8, line[1..3], "rq")) {
                         try self.cur_text_object.?.addWordWithoutMove("\"");
                     } else {
-                        std.debug.print("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
+                        self.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
                         try self.cur_text_object.?.addWordWithoutMove(line[1..]);
                     }
                 },
@@ -228,7 +241,7 @@ pub fn transpile(self: *Self) !u8 {
                             try self.cur_text_object.?.newLine();
                             try self.handle_font_cmd(font_name, font_num);
                         } else {
-                            std.debug.print("{d}: warning: unknown x sub command: {s}", .{ self.cur_line_num, subCmd });
+                            self.warn("{d}: warning: unknown x sub command: {s}", .{ self.cur_line_num, subCmd });
                         }
                     } else if (line[1] == 'f') {
                         // wf5
@@ -237,7 +250,7 @@ pub fn transpile(self: *Self) !u8 {
                         self.cur_pdf_font_num = self.font_map.get(font_num);
                         try self.cur_text_object.?.newLine();
                         try self.doc.?.addFontRefTo(self.cur_page.?, self.cur_pdf_font_num.?);
-                        std.debug.print("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
+                        self.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
                         try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
                     }
                 },
@@ -255,7 +268,6 @@ pub fn transpile(self: *Self) !u8 {
                     if (v.integer <= self.cur_page.?.y) {
                         //-v.integer = curPage.?.y - v.integer;
                         v = v.subtractFrom(self.cur_page.?.y);
-                        //try stderr.print("y - v: {f}\n", .{v});
                         try self.cur_text_object.?.setF(v);
                     }
                 },
@@ -275,7 +287,7 @@ pub fn transpile(self: *Self) !u8 {
                     try self.cur_text_object.?.setE(fixPointFromZPos(h_z));
                 },
                 else => {
-                    std.debug.print("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
+                    self.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
                 },
             }
             try self.writer.flush();

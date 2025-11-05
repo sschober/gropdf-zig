@@ -447,14 +447,15 @@ pub const Document = struct {
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
+        std.debug.print("pdf: added font {s} as font num {d} with idx {d}\n", .{ f, fontNum, objIdx });
         return fontNum;
     }
 
     /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
         const font = self.fonts.items[fNum];
-        std.debug.print("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
         if (fNum >= page.resources.items.len) {
+            std.debug.print("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
             try page.resources.append(font.objNum);
         } else {
             std.debug.print("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });

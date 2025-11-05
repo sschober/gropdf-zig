@@ -22,21 +22,24 @@ are working, and if you look closely, you will notice the page
 number at the bottom.
 .PP
 The positioning in grout is an interessting topic, as it seems to be
-absolute, at first glance. Meaning, there are H and V absolute
-coordinates given through all of the document. 
+absolute, at first glance. Meaning, there are \*[CODE]H\*[CODE X]
+and \*[CODE]V\*[CODE X] absolute coordinates given through all of
+the document. 
 .PP
-But, when ligatures are to be rendered,  \*[CODE]C\*[CODE X]
-commands are issued and these do not increment the internal drawing
-position of the backend device. The same is true for wh commands,
-which increment the x drawing position in a relative way. But in
-order to be able to compute the new absolute position, we need to
-know the current position.
+But, when ligatures are to be rendered, \*[CODE]C\*[CODE X] commands
+are issued and these do not increment the internal drawing position
+of the backend device. The same is true for wh commands, which
+increment the \*[CODE]x\*[CODE X] drawing position in a relative
+way. But in order to be able to compute the new absolute position,
+we need to know the current position.
 .PP
-PDF on the other hand has a text rendering command Tj, which
-increases the drawing position automatically, but we have no way to
-query the current position as that is an internal state of the
-renderer, which lives in the viewer.
+PDF on the other hand has a text rendering commands
+\*[CODE]Tj\*[CODE X], which increases the drawing position
+automatically, but we have no way to query the current position as
+that is an internal state of the renderer, which lives in the
+viewer.
 .PP
 There was no way around implementing relative positioning in
 gropdf.zig. That meant, we need to read the font description files
-residing in /usr/share/groff/current/font/devpdf/<font name>
+residing in 
+\*[CODE]/usr/share/groff/current/font/devpdf/<font name>\*[CODE X]

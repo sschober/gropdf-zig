@@ -13,6 +13,24 @@ pub fn main() !u8 {
     var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer allocator.deinit();
 
+    var is_debug: bool = false;
+    var is_warn: bool = false;
+
+    const args = try std.process.argsAlloc(allocator.allocator());
+    if (args.len > 1) {
+        // we have some command line arguments
+        for (args[1..]) |arg| {
+            if (std.mem.eql(u8, arg, "-d")) {
+                std.debug.print("enabling debugging output\n", .{});
+                is_debug = true;
+            } else if (std.mem.eql(u8, arg, "-w")) {
+                is_warn = true;
+            } else {
+                std.debug.print("warning: unknown argument: {s}\n", .{arg});
+            }
+        }
+    }
+
     var stdout_buffer: [4096]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
@@ -21,7 +39,9 @@ pub fn main() !u8 {
     var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
     const reader = &stdin_reader.interface;
 
-    var transpiler = Transpiler.init(allocator.allocator(), reader, stdout);
+    var transpiler =
+        Transpiler.init(allocator.allocator(), //
+            reader, stdout, is_debug, is_warn);
     const result = try transpiler.transpile();
     return result;
 }
