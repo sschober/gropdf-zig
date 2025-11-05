@@ -1,3 +1,5 @@
+//! Transpiler has the logic to interpret grout and render it to pdf
+//!
 const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
@@ -30,6 +32,8 @@ cur_page: ?*pdf.Page = null,
 cur_x: usize = 0,
 cur_y: usize = 0,
 
+/// initialize a Transpiler object, provide a `Reader` object for grout input and
+/// a `Writer` for writing pdf to
 pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer) Self {
     return Self{
         .allocator = allocator, //
@@ -71,6 +75,7 @@ fn handle_font_cmd(
     try self.font_glyph_widths_maps.put(pdf_font_num, glyph_map);
 }
 
+/// read grout from `reader` and output pdf to `writer`
 pub fn transpile(self: *Self) !u8 {
     while (self.reader.takeDelimiter('\n')) |opt_line| {
         if (opt_line) |line| {
