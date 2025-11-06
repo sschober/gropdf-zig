@@ -1,4 +1,5 @@
 const std = @import("std");
+const log = @import("log.zig");
 
 const String = []const u8;
 /// a glyph map maps indices corresponding to ascii codes to glyph widths. each
@@ -89,7 +90,7 @@ pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
         };
         switch (stat.kind) {
             .directory => {
-                std.debug.print("found: {s}\n", .{path});
+                log.dbg("found: {s}\n", .{path});
                 search_path = path;
                 break;
             },

@@ -3,6 +3,7 @@
 const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
+const log = @import("log.zig");
 const String = []const u8;
 const Allocator = std.mem.Allocator;
 const Transpiler = @import("Transpiler.zig");
@@ -13,18 +14,15 @@ pub fn main() !u8 {
     var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer allocator.deinit();
 
-    var is_debug: bool = false;
-    var is_warn: bool = false;
-
     const args = try std.process.argsAlloc(allocator.allocator());
     if (args.len > 1) {
         // we have some command line arguments
         for (args[1..]) |arg| {
             if (std.mem.eql(u8, arg, "-d")) {
                 std.debug.print("enabling debugging output\n", .{});
-                is_debug = true;
+                log.is_debug = true;
             } else if (std.mem.eql(u8, arg, "-w")) {
-                is_warn = true;
+                log.is_warn = true;
             } else {
                 std.debug.print("warning: unknown argument: {s}\n", .{arg});
             }
@@ -41,7 +39,7 @@ pub fn main() !u8 {
 
     var transpiler =
         Transpiler.init(allocator.allocator(), //
-            reader, stdout, is_debug, is_warn);
+            reader, stdout);
     const result = try transpiler.transpile();
     return result;
 }

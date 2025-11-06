@@ -3,13 +3,13 @@
 //! implements PDF version 1.1 as defined in [Adobe PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)
 //! (pdfref17)
 const std = @import("std");
+const FixPoint = @import("FixPoint.zig");
+const log = @import("log.zig");
 
 /// alias to shorten usages below
 const Allocator = std.mem.Allocator;
 const String = []const u8;
 const ArrayList = std.array_list.Managed;
-
-const FixPoint = @import("FixPoint.zig");
 
 // TODO read unitscale from device DESC file
 pub var UNITSCALE: usize = 1000;
@@ -447,7 +447,7 @@ pub const Document = struct {
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
-        std.debug.print("pdf: added font {s} as font num {d} with idx {d}\n", .{ f, fontNum, objIdx });
+        log.dbg("pdf: added font {s} as font num {d} with idx {d}\n", .{ f, fontNum, objIdx });
         return fontNum;
     }
 
@@ -455,10 +455,10 @@ pub const Document = struct {
     pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
         const font = self.fonts.items[fNum];
         if (fNum >= page.resources.items.len) {
-            std.debug.print("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
+            log.dbg("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
             try page.resources.append(font.objNum);
         } else {
-            std.debug.print("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });
+            log.dbg("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });
         }
     }
 
