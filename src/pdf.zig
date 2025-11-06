@@ -132,6 +132,7 @@ pub const TextObject = struct {
     }
     /// issue Tf command
     pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
+        try self.newLine();
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
     }
     /// issue Tm command with saved and latest positions (e and f)

@@ -58,6 +58,10 @@ fn handle_font_cmd(
     font_name: String,
     font_num: usize,
 ) !void {
+    if (self.font_map.contains(font_num)) {
+        log.dbg("{d}: not adding {s} {d} to font map: already seen...\n", .{ self.cur_line_num, font_name, font_num });
+        return;
+    }
     var pdf_font_num: usize = 0;
     if (std.mem.eql(u8, "TR", font_name)) {
         pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
@@ -71,7 +75,7 @@ fn handle_font_cmd(
         log.warn("warning: unsupported font: {s}\n", .{font_name});
         return;
     }
-    log.dbg("adding {s} as pdf font num {d} to font map\n", .{ font_name, pdf_font_num });
+    log.dbg("{d}: adding {s} as pdf font num {d} to font map\n", .{ self.cur_line_num, font_name, pdf_font_num });
     try self.font_map.put(font_num, pdf_font_num);
     const glyph_map = try groff.readGlyphMap(self.allocator, font_name);
     try self.font_glyph_widths_maps.put(pdf_font_num, glyph_map);
