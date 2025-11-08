@@ -28,6 +28,7 @@ font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
 doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
 cur_pdf_font_num: ?usize = null,
+cur_groff_font_num: ?usize = null,
 cur_font_size: ?usize = null,
 cur_line_num: usize = 0,
 cur_page: ?*pdf.Page = null,
@@ -58,27 +59,29 @@ fn handle_font_cmd(
     font_name: String,
     font_num: usize,
 ) !void {
-    if (self.font_map.contains(font_num)) {
-        log.dbg("{d}: not adding {s} {d} to font map: already seen...\n", .{ self.cur_line_num, font_name, font_num });
-        return;
-    }
     var pdf_font_num: usize = 0;
-    if (std.mem.eql(u8, "TR", font_name)) {
-        pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-    } else if (std.mem.eql(u8, "TB", font_name)) {
-        pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-    } else if (std.mem.eql(u8, "TI", font_name)) {
-        pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-    } else if (std.mem.eql(u8, "CR", font_name)) {
-        pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Courier);
+    if (self.font_map.contains(font_num)) {
+        log.dbg("{d}: not adding {s} {d} to pdf doc: already seen...\n", .{ self.cur_line_num, font_name, font_num });
+        pdf_font_num = self.font_map.get(font_num).?;
     } else {
-        log.warn("warning: unsupported font: {s}\n", .{font_name});
-        return;
+        if (std.mem.eql(u8, "TR", font_name)) {
+            pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
+        } else if (std.mem.eql(u8, "TB", font_name)) {
+            pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
+        } else if (std.mem.eql(u8, "TI", font_name)) {
+            pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
+        } else if (std.mem.eql(u8, "CR", font_name)) {
+            pdf_font_num = try self.doc.?.addStandardFont(pdf.StandardFonts.Courier);
+        } else {
+            log.warn("warning: unsupported font: {s}\n", .{font_name});
+            return;
+        }
+        const glyph_map = try groff.readGlyphMap(self.allocator, font_name);
+        try self.font_glyph_widths_maps.put(font_num, glyph_map);
     }
-    log.dbg("{d}: adding {s} as pdf font num {d} to font map\n", .{ self.cur_line_num, font_name, pdf_font_num });
-    try self.font_map.put(font_num, pdf_font_num);
-    const glyph_map = try groff.readGlyphMap(self.allocator, font_name);
-    try self.font_glyph_widths_maps.put(pdf_font_num, glyph_map);
+    const page_font_idx = try self.doc.?.addFontRefTo(self.cur_page.?, pdf_font_num);
+    log.dbg("{d}: adding {s} as pdf page font idx {d} to font map\n", .{ self.cur_line_num, font_name, pdf_font_num });
+    try self.font_map.put(font_num, page_font_idx);
 }
 
 /// read grout from `reader` and output pdf to `writer`
@@ -111,8 +114,8 @@ pub fn transpile(self: *Self) !u8 {
                     // select font mounted at pos
                     // sample: f5
                     const font_num = try std.fmt.parseUnsigned(usize, line[1..], 10);
+                    self.cur_groff_font_num = font_num;
                     self.cur_pdf_font_num = self.font_map.get(font_num);
-                    try self.doc.?.addFontRefTo(self.cur_page.?, self.cur_pdf_font_num.?);
                     log.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
                     try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
                 },
@@ -131,9 +134,6 @@ pub fn transpile(self: *Self) !u8 {
                                 // mount font position pos
                                 // sample: x font 5 TR
                                 const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
-                                if (self.font_map.contains(font_num)) {
-                                    continue;
-                                }
                                 const font_name = it.next().?;
                                 try self.handle_font_cmd(font_name, font_num);
                             },
@@ -215,7 +215,7 @@ pub fn transpile(self: *Self) !u8 {
                 .t => {
                     // typeset word
                     // sample: thello
-                    const glyph_map = self.font_glyph_widths_maps.get(self.cur_pdf_font_num.?).?;
+                    const glyph_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
                     try self.cur_text_object.?.addWord(line[1..], glyph_map, self.cur_font_size.?);
                 },
                 .w => {
@@ -240,9 +240,9 @@ pub fn transpile(self: *Self) !u8 {
                         // wf5
                         // TODO factor out into function
                         const font_num = try std.fmt.parseUnsigned(usize, line[2..], 10);
+                        self.cur_groff_font_num = font_num;
                         self.cur_pdf_font_num = self.font_map.get(font_num);
                         try self.cur_text_object.?.newLine();
-                        try self.doc.?.addFontRefTo(self.cur_page.?, self.cur_pdf_font_num.?);
                         log.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
                         try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
                     }

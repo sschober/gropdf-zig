@@ -453,13 +453,15 @@ pub const Document = struct {
     }
 
     /// once a font was added to the document, use this to add a reference to a page
-    pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !void {
+    pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !usize {
         const font = self.fonts.items[fNum];
         if (fNum >= page.resources.items.len) {
             log.dbg("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
             try page.resources.append(font.objNum);
+            return page.resources.items.len - 1;
         } else {
             log.dbg("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });
+            return fNum;
         }
     }
 
