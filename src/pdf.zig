@@ -131,9 +131,9 @@ pub const TextObject = struct {
         return res;
     }
     /// issue Tf command
-    pub fn selectFont(self: *TextObject, fNum: usize, fSize: usize) !void {
+    pub fn selectFont(self: *TextObject, page_font_ref: Page.FontRef, fSize: usize) !void {
         try self.newLine();
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "/F{d} {d}. Tf", .{ fNum, fSize }));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "/F{d} {d}. Tf", .{ page_font_ref.idx, fSize }));
     }
     /// issue Tm command with saved and latest positions (e and f)
     pub fn flushPos(self: *TextObject) !void {
@@ -310,6 +310,12 @@ pub const Page = struct {
     resources: ArrayList(usize),
     x: usize = 612,
     y: usize = 792,
+
+    /// Font registered on a page are assigned an index. This struct
+    /// captures the index and the fact, that the font was
+    /// registered.
+    pub const FontRef = struct { idx: usize };
+
     pub fn init(allocator: Allocator, n: usize, p: usize, c: *Stream) Page {
         return Page{ .allocator = allocator, .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
     }
@@ -434,34 +440,37 @@ pub const Document = struct {
         return self;
     }
 
+    /// a font that is registered on a document is assigned an index
+    pub const FontRef = struct { idx: usize };
+
     /// add an adobe defined standard font to the document
     /// returns the font number
-    pub fn addStandardFont(self: *Document, stdFnt: StandardFonts) !usize {
+    pub fn addStandardFont(self: *Document, stdFnt: StandardFonts) !FontRef {
         return self.addFont(stdFnt.string());
     }
 
     /// add a font to the document by specifing its name returns the index of
     /// the font into our internal font list
-    pub fn addFont(self: *Document, f: String) !usize {
+    pub fn addFont(self: *Document, f: String) !FontRef {
         const objIdx = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
         log.dbg("pdf: added font {s} as font num {d} with idx {d}\n", .{ f, fontNum, objIdx });
-        return fontNum;
+        return FontRef{ .idx = fontNum };
     }
 
     /// once a font was added to the document, use this to add a reference to a page
-    pub fn addFontRefTo(self: *Document, page: *Page, fNum: usize) !usize {
-        const font = self.fonts.items[fNum];
-        if (fNum >= page.resources.items.len) {
-            log.dbg("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ fNum, font.objNum, page.objNum });
+    pub fn addFontRefTo(self: *Document, page: *Page, doc_font_ref: Document.FontRef) !Page.FontRef {
+        const font = self.fonts.items[doc_font_ref.idx];
+        if (doc_font_ref.idx >= page.resources.items.len) {
+            log.dbg("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ doc_font_ref.idx, font.objNum, page.objNum });
             try page.resources.append(font.objNum);
-            return page.resources.items.len - 1;
+            return Page.FontRef{ .idx = page.resources.items.len - 1 };
         } else {
-            log.dbg("pdf: assuming already seen fidx {d}. not adding to page {d}...\n", .{ fNum, page.objNum });
-            return fNum;
+            log.dbg("pdf: assuming already seen doc font ref {d}. not adding to page {d}...\n", .{ doc_font_ref.idx, page.objNum });
+            return Page.FontRef{ .idx = doc_font_ref.idx };
         }
     }
 
