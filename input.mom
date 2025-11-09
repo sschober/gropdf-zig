@@ -40,6 +40,23 @@ that is an internal state of the renderer, which lives in the
 viewer.
 .PP
 There was no way around implementing relative positioning in
-gropdf.zig. That meant, we need to read the font description files
-residing in 
-\*[CODE]/usr/share/groff/current/font/devpdf/<font name>\*[CODE X]
+\*[CODE]gropdf.zig\*[CODE X]\&.
+That meant, we need to read the font
+description files residing in
+\*[CODE]/usr/share/groff/current/font/devpdf/<font name>\*[CODE X],
+where for every glyph its width is recorded. We use that when
+typsetting words with the \*[CODE]Tj\*[CODE X] command to increase
+the internal \*[CODE]y\*[CODE X] axis pointer.
+
+That way positioning improved automatically.
+.
+.HEADING 2 "Font Selection"
+.PP
+.DROPCAP S 2
+electing the currently correct font is quiet involved, when bridging
+\*[CODE]groff_out(5)\*[CODE X] and PDF. Groff issues commands like
+the following: \*[CODE]x font 38 TI\*[CODE X] to mount a certain
+font at a certain position, but pdf needs a font to be registered on
+the document level and then again at the page level. The first
+registration yields an object number, the second a page relative
+font number.
