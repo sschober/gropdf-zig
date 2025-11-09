@@ -31,7 +31,7 @@ doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
 cur_pdf_font_num: ?pdf.Page.FontRef = null,
 cur_groff_font_num: ?usize = null,
-cur_font_size: ?usize = null,
+cur_font_size: usize = 11,
 cur_line_num: usize = 0,
 cur_page: ?*pdf.Page = null,
 cur_x: usize = 0,
@@ -86,13 +86,14 @@ fn handle_font_cmd(
     try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
 }
 
-/// handle grout fN command
+/// handle grout fN command - parses N usize argument, selects font from page
+/// font map and selects the font in the current text object
 fn handle_f(self: *Self, line: []u8) !void {
     const font_num = try std.fmt.parseUnsigned(usize, line, 10);
     self.cur_groff_font_num = font_num;
     self.cur_pdf_font_num = self.page_font_map.get(font_num);
-    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
-    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
+    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size });
+    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size);
 }
 
 /// read grout from `reader` and output pdf to `writer`
@@ -222,7 +223,7 @@ pub fn transpile(self: *Self) !u8 {
                     // typeset word
                     // sample: thello
                     const glyph_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
-                    try self.cur_text_object.?.addWord(line[1..], glyph_map, self.cur_font_size.?);
+                    try self.cur_text_object.?.addWord(line[1..], glyph_map, self.cur_font_size);
                 },
                 .w => {
                     // interword space
