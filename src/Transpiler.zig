@@ -50,22 +50,24 @@ pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer
     };
 }
 
-/// helper function translating a groff z position coordinate into a fix point
-/// numer scaled by the pdf unit scale
+/// translate a groff z position coordinate into a fix point
+/// number scaled by the pdf unit scale
 fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
     return FixPoint.from(zp.v, pdf.UNITSCALE);
 }
 
-/// handles a `x font TR 6` or wx font TR 6` command
-fn handle_font_cmd(
-    self: *Self,
-    grout_font_ref: groff.FontRef,
-) !void {
+/// handles a `x font TR 6` command
+fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
+    const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
+    const font_name = it.next().?;
+    const grout_font_ref = groff.FontRef{ .name = font_name, .idx = font_num };
     var doc_font_ref: pdf.Document.FontRef = pdf.Document.FontRef{ .idx = 0 };
+    // we need to decide, if we need to register the font at the document level, or if we already did
     if (self.doc_font_map.contains(grout_font_ref.idx)) {
         log.dbg("{d}: not adding {f} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref });
         doc_font_ref = self.doc_font_map.get(grout_font_ref.idx).?;
     } else {
+        // this is a new font, we did not see up until now...
         if (std.mem.eql(u8, "TR", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
         } else if (std.mem.eql(u8, "TB", grout_font_ref.name)) {
@@ -78,6 +80,7 @@ fn handle_font_cmd(
             log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
             return;
         }
+        // the glyph map helps us move the X position in PDF text objects forward
         const glyph_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
         try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_map);
     }
@@ -88,6 +91,7 @@ fn handle_font_cmd(
 
 /// handle grout fN command - parses N usize argument, selects font from page
 /// font map and selects the font in the current text object
+/// sample: f5
 fn handle_f(self: *Self, line: []u8) !void {
     const font_num = try std.fmt.parseUnsigned(usize, line, 10);
     self.cur_groff_font_num = font_num;
@@ -96,6 +100,84 @@ fn handle_f(self: *Self, line: []u8) !void {
     try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size);
 }
 
+/// begin a new page in pdf document, copy over the page dimensions from previous page
+/// sample: p 2
+fn handle_p(self: *Self) !void {
+    self.cur_page = try self.doc.?.addPage();
+    if (self.cur_x > 0) {
+        self.cur_page.?.x = self.cur_x;
+    }
+    if (self.cur_y > 0) {
+        self.cur_page.?.y = self.cur_y;
+    }
+    self.cur_text_object = self.cur_page.?.contents.textObject;
+}
+const XCommandError = error{WrongDevice} || Allocator.Error;
+
+/// device control command
+/// sample: x X papersize
+fn handle_x(self: *Self, line: []u8) !void {
+    if (line.len > 2) {
+        var it = std.mem.splitScalar(u8, line[2..], ' ');
+        const sub_cmd_enum = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
+        switch (sub_cmd_enum) {
+            .init => {
+                // begin document
+                self.doc = try pdf.Document.init(self.allocator);
+            },
+            .font => try self.handle_x_font(&it),
+            .res => {
+                // resolution control command
+                // sample:
+                const arg = it.next().?;
+                const res = try std.fmt.parseUnsigned(usize, arg, 10);
+                const unitsize = res / 72;
+                pdf.UNITSCALE = unitsize;
+            },
+            .T => {
+                // typesetter control command
+                // sample: x T pdf
+                const arg = it.next().?;
+                if (std.mem.indexOf(u8, arg, "pdf") != 0) {
+                    log.dbg("error: unexpected output type: {s}", .{arg});
+                    return XCommandError.WrongDevice;
+                }
+            },
+            .X => {
+                // X escape control command
+                // sample: x X papersize=421000z,595000z
+                const arg = it.next().?;
+                if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
+                    if (0 == idxPapersize) {
+                        // we found a `papersize` argument
+                        if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
+                            var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
+                            const zX = itZSizes.next().?;
+                            const zPosX = try groff.zPosition.fromString(zX);
+                            const zPosXScaled = fixPointFromZPos(zPosX);
+                            if (zPosXScaled.integer != self.cur_page.?.x) {
+                                self.cur_page.?.x = zPosXScaled.integer;
+                                self.cur_x = zPosXScaled.integer;
+                            }
+                            const zY = itZSizes.next().?;
+                            const zPosY = try groff.zPosition.fromString(zY);
+                            const zPosYScaled = fixPointFromZPos(zPosY);
+                            if (zPosYScaled.integer != self.cur_page.?.y) {
+                                self.cur_page.?.y = zPosYScaled.integer;
+                                self.cur_y = zPosYScaled.integer;
+                            }
+                        }
+                    } else {
+                        log.warn("{d}: warning: unexpected index: {d}\n", .{ self.cur_line_num, idxPapersize });
+                    }
+                } else {
+                    log.warn("{d}: warning: unkown x X subcommand: {s}\n", .{ self.cur_line_num, arg });
+                }
+            },
+            else => {},
+        }
+    }
+}
 /// read grout from `reader` and output pdf to `writer`
 pub fn transpile(self: *Self) !u8 {
     while (self.reader.takeDelimiter('\n')) |opt_line| {
@@ -110,93 +192,9 @@ pub fn transpile(self: *Self) !u8 {
             }
             const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
             switch (cmd) {
-                .p => {
-                    // begin new page
-                    // sample: p 2
-                    self.cur_page = try self.doc.?.addPage();
-                    if (self.cur_x > 0) {
-                        self.cur_page.?.x = self.cur_x;
-                    }
-                    if (self.cur_y > 0) {
-                        self.cur_page.?.y = self.cur_y;
-                    }
-                    self.cur_text_object = self.cur_page.?.contents.textObject;
-                },
-                .f => {
-                    // select font mounted at pos
-                    // sample: f5
-                    try self.handle_f(line[1..]);
-                },
-                .x => {
-                    // device control command
-                    // sample: x X papersize
-                    if (line.len > 2) {
-                        var it = std.mem.splitScalar(u8, line[2..], ' ');
-                        const sub_cmd_enum = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
-                        switch (sub_cmd_enum) {
-                            .init => {
-                                // begin document
-                                self.doc = try pdf.Document.init(self.allocator);
-                            },
-                            .font => {
-                                // mount font position pos
-                                // sample: x font 5 TR
-                                const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
-                                const font_name = it.next().?;
-                                try self.handle_font_cmd(groff.FontRef{ .name = font_name, .idx = font_num });
-                            },
-                            .res => {
-                                // resolution control command
-                                // sample:
-                                const arg = it.next().?;
-                                const res = try std.fmt.parseUnsigned(usize, arg, 10);
-                                const unitsize = res / 72;
-                                pdf.UNITSCALE = unitsize;
-                            },
-                            .T => {
-                                // typesetter control command
-                                // sample: x T pdf
-                                const arg = it.next().?;
-                                if (std.mem.indexOf(u8, arg, "pdf") != 0) {
-                                    log.dbg("error: unexpected output type: {s}", .{arg});
-                                    return 1;
-                                }
-                            },
-                            .X => {
-                                // X escape control command
-                                // sample: x X papersize=421000z,595000z
-                                const arg = it.next().?;
-                                if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
-                                    if (0 == idxPapersize) {
-                                        // we found a `papersize` argument
-                                        if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
-                                            var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
-                                            const zX = itZSizes.next().?;
-                                            const zPosX = try groff.zPosition.fromString(zX);
-                                            const zPosXScaled = fixPointFromZPos(zPosX);
-                                            if (zPosXScaled.integer != self.cur_page.?.x) {
-                                                self.cur_page.?.x = zPosXScaled.integer;
-                                                self.cur_x = zPosXScaled.integer;
-                                            }
-                                            const zY = itZSizes.next().?;
-                                            const zPosY = try groff.zPosition.fromString(zY);
-                                            const zPosYScaled = fixPointFromZPos(zPosY);
-                                            if (zPosYScaled.integer != self.cur_page.?.y) {
-                                                self.cur_page.?.y = zPosYScaled.integer;
-                                                self.cur_y = zPosYScaled.integer;
-                                            }
-                                        }
-                                    } else {
-                                        log.warn("{d}: warning: unexpected index: {d}\n", .{ self.cur_line_num, idxPapersize });
-                                    }
-                                } else {
-                                    log.warn("{d}: warning: unkown x X subcommand: {s}\n", .{ self.cur_line_num, arg });
-                                }
-                            },
-                            else => {},
-                        }
-                    }
-                },
+                .p => try self.handle_p(),
+                .f => try self.handle_f(line[1..]),
+                .x => try self.handle_x(line),
                 .C => {
                     // typeset glyph of special character id
                     // sample: Chy
@@ -232,17 +230,7 @@ pub fn transpile(self: *Self) !u8 {
                         const h = try groff.zPosition.fromString(line[2..]);
                         try self.cur_text_object.?.addE(fixPointFromZPos(h));
                     } else if (line[1] == 'x') {
-                        var it = std.mem.splitScalar(u8, line[3..], ' ');
-                        const subCmd = it.next().?;
-                        if (std.mem.eql(u8, subCmd, "font")) {
-                            // wx font 6 CR
-                            const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
-                            const font_name = it.next().?;
-                            try self.cur_text_object.?.newLine();
-                            try self.handle_font_cmd(groff.FontRef{ .name = font_name, .idx = font_num });
-                        } else {
-                            log.warn("{d}: warning: unknown x sub command: {s}", .{ self.cur_line_num, subCmd });
-                        }
+                        try self.handle_x(line[1..]);
                     } else if (line[1] == 'f') {
                         // wf5
                         try self.handle_f(line[2..]);
