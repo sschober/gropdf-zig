@@ -314,7 +314,12 @@ pub const Page = struct {
     /// Font registered on a page are assigned an index. This struct
     /// captures the index and the fact, that the font was
     /// registered.
-    pub const FontRef = struct { idx: usize };
+    pub const FontRef = struct {
+        idx: usize,
+        pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("Page.FontRef: {d}", .{self.idx});
+        }
+    };
 
     pub fn init(allocator: Allocator, n: usize, p: usize, c: *Stream) Page {
         return Page{ .allocator = allocator, .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
@@ -441,7 +446,12 @@ pub const Document = struct {
     }
 
     /// a font that is registered on a document is assigned an index
-    pub const FontRef = struct { idx: usize };
+    pub const FontRef = struct {
+        idx: usize,
+        pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+            try writer.print("Doc.FontRef: {d}", .{self.idx});
+        }
+    };
 
     /// add an adobe defined standard font to the document
     /// returns the font number
@@ -457,19 +467,20 @@ pub const Document = struct {
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
-        log.dbg("pdf: added font {s} as font num {d} with idx {d}\n", .{ f, fontNum, objIdx });
-        return FontRef{ .idx = fontNum };
+        const result = FontRef{ .idx = fontNum };
+        log.dbg("pdf: added font as {f} with idx {d}:\n{s}\n", .{ result, objIdx, f });
+        return result;
     }
 
     /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, doc_font_ref: Document.FontRef) !Page.FontRef {
         const font = self.fonts.items[doc_font_ref.idx];
         if (doc_font_ref.idx >= page.resources.items.len) {
-            log.dbg("pdf: adding fidx {d} as obj num {d} to page {d}\n", .{ doc_font_ref.idx, font.objNum, page.objNum });
+            log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
             try page.resources.append(font.objNum);
             return Page.FontRef{ .idx = page.resources.items.len - 1 };
         } else {
-            log.dbg("pdf: assuming already seen doc font ref {d}. not adding to page {d}...\n", .{ doc_font_ref.idx, page.objNum });
+            log.dbg("pdf: assuming already seen {f}. not adding to page {d}...\n", .{ doc_font_ref, page.objNum });
             return Page.FontRef{ .idx = doc_font_ref.idx };
         }
     }
