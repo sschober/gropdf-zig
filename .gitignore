@@ -2,3 +2,4 @@
 zig-out/
 *.o
 dev-out.pdf
+dev-orig.pdf
