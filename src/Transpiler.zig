@@ -56,33 +56,32 @@ fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
 /// handles a `x font TR 6` or wx font TR 6` command
 fn handle_font_cmd(
     self: *Self,
-    font_name: String,
-    font_num: usize,
+    grout_font_ref: groff.FontRef,
 ) !void {
     var doc_font_ref: pdf.Document.FontRef = pdf.Document.FontRef{ .idx = 0 };
-    if (self.font_map.contains(font_num)) {
-        log.dbg("{d}: not adding {s} {d} to pdf doc: already seen...\n", .{ self.cur_line_num, font_name, font_num });
+    if (self.font_map.contains(grout_font_ref.idx)) {
+        log.dbg("{d}: not adding {s} {d} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref.name, grout_font_ref.idx });
         // TODO: this assumption might not hold everytime. it is only valid on the first page.
-        doc_font_ref = pdf.Document.FontRef{ .idx = self.font_map.get(font_num).?.idx };
+        doc_font_ref = pdf.Document.FontRef{ .idx = self.font_map.get(grout_font_ref.idx).?.idx };
     } else {
-        if (std.mem.eql(u8, "TR", font_name)) {
+        if (std.mem.eql(u8, "TR", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-        } else if (std.mem.eql(u8, "TB", font_name)) {
+        } else if (std.mem.eql(u8, "TB", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-        } else if (std.mem.eql(u8, "TI", font_name)) {
+        } else if (std.mem.eql(u8, "TI", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-        } else if (std.mem.eql(u8, "CR", font_name)) {
+        } else if (std.mem.eql(u8, "CR", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Courier);
         } else {
-            log.warn("warning: unsupported font: {s}\n", .{font_name});
+            log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
             return;
         }
-        const glyph_map = try groff.readGlyphMap(self.allocator, font_name);
-        try self.font_glyph_widths_maps.put(font_num, glyph_map);
+        const glyph_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
+        try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_map);
     }
     const page_font_ref = try self.doc.?.addFontRefTo(self.cur_page.?, doc_font_ref);
-    log.dbg("{d}: adding {s} as pdf page font idx {d} to font map\n", .{ self.cur_line_num, font_name, doc_font_ref.idx });
-    try self.font_map.put(font_num, page_font_ref);
+    log.dbg("{d}: adding {s} as {f} to font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
+    try self.font_map.put(grout_font_ref.idx, page_font_ref);
 }
 
 /// read grout from `reader` and output pdf to `writer`
@@ -136,7 +135,7 @@ pub fn transpile(self: *Self) !u8 {
                                 // sample: x font 5 TR
                                 const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
                                 const font_name = it.next().?;
-                                try self.handle_font_cmd(font_name, font_num);
+                                try self.handle_font_cmd(groff.FontRef{ .name = font_name, .idx = font_num });
                             },
                             .res => {
                                 // resolution control command
@@ -233,7 +232,7 @@ pub fn transpile(self: *Self) !u8 {
                             const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
                             const font_name = it.next().?;
                             try self.cur_text_object.?.newLine();
-                            try self.handle_font_cmd(font_name, font_num);
+                            try self.handle_font_cmd(groff.FontRef{ .name = font_name, .idx = font_num });
                         } else {
                             log.warn("{d}: warning: unknown x sub command: {s}", .{ self.cur_line_num, subCmd });
                         }

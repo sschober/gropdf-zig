@@ -90,7 +90,7 @@ pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
         };
         switch (stat.kind) {
             .directory => {
-                log.dbg("found: {s}\n", .{path});
+                log.dbg("groff: found {s}\n", .{path});
                 search_path = path;
                 break;
             },
@@ -142,3 +142,14 @@ pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
     }
     return glyph_widths;
 }
+
+/// groff_out(5) font reference
+/// sample: TR 5
+pub const FontRef = struct {
+    name: String,
+    idx: usize,
+
+    pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("grout.FontRef: {s} {d}", .{ self.name, self.idx });
+    }
+};
