@@ -18,8 +18,10 @@ reader: *std.Io.Reader,
 /// could be stdout or a file
 writer: *std.Io.Writer,
 
-// maps grout font numbers to pdf font numbers
-font_map: std.AutoHashMap(usize, pdf.Page.FontRef),
+// maps grout font numbers to pdf page font references
+page_font_map: std.AutoHashMap(usize, pdf.Page.FontRef),
+// maps grout font numbers to pdf dox font references
+doc_font_map: std.AutoHashMap(usize, pdf.Document.FontRef),
 
 // maps pdf font numbers to glyph widths maps
 font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
@@ -42,7 +44,8 @@ pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer
         .allocator = allocator, //
         .reader = reader,
         .writer = writer,
-        .font_map = std.AutoHashMap(usize, pdf.Page.FontRef).init(allocator),
+        .page_font_map = std.AutoHashMap(usize, pdf.Page.FontRef).init(allocator),
+        .doc_font_map = std.AutoHashMap(usize, pdf.Document.FontRef).init(allocator),
         .font_glyph_widths_maps = std.AutoHashMap(usize, groff.GlyphMap).init(allocator),
     };
 }
@@ -59,10 +62,9 @@ fn handle_font_cmd(
     grout_font_ref: groff.FontRef,
 ) !void {
     var doc_font_ref: pdf.Document.FontRef = pdf.Document.FontRef{ .idx = 0 };
-    if (self.font_map.contains(grout_font_ref.idx)) {
-        log.dbg("{d}: not adding {s} {d} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref.name, grout_font_ref.idx });
-        // TODO: this assumption might not hold everytime. it is only valid on the first page.
-        doc_font_ref = pdf.Document.FontRef{ .idx = self.font_map.get(grout_font_ref.idx).?.idx };
+    if (self.doc_font_map.contains(grout_font_ref.idx)) {
+        log.dbg("{d}: not adding {f} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref });
+        doc_font_ref = self.doc_font_map.get(grout_font_ref.idx).?;
     } else {
         if (std.mem.eql(u8, "TR", grout_font_ref.name)) {
             doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
@@ -80,8 +82,17 @@ fn handle_font_cmd(
         try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_map);
     }
     const page_font_ref = try self.doc.?.addFontRefTo(self.cur_page.?, doc_font_ref);
-    log.dbg("{d}: adding {s} as {f} to font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
-    try self.font_map.put(grout_font_ref.idx, page_font_ref);
+    log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
+    try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
+}
+
+/// handle grout fN command
+fn handle_f(self: *Self, line: []u8) !void {
+    const font_num = try std.fmt.parseUnsigned(usize, line, 10);
+    self.cur_groff_font_num = font_num;
+    self.cur_pdf_font_num = self.page_font_map.get(font_num);
+    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size orelse 11 });
+    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
 }
 
 /// read grout from `reader` and output pdf to `writer`
@@ -113,11 +124,7 @@ pub fn transpile(self: *Self) !u8 {
                 .f => {
                     // select font mounted at pos
                     // sample: f5
-                    const font_num = try std.fmt.parseUnsigned(usize, line[1..], 10);
-                    self.cur_groff_font_num = font_num;
-                    self.cur_pdf_font_num = self.font_map.get(font_num);
-                    log.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?.idx, self.cur_font_size orelse 11 });
-                    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
+                    try self.handle_f(line[1..]);
                 },
                 .x => {
                     // device control command
@@ -238,13 +245,7 @@ pub fn transpile(self: *Self) !u8 {
                         }
                     } else if (line[1] == 'f') {
                         // wf5
-                        // TODO factor out into function
-                        const font_num = try std.fmt.parseUnsigned(usize, line[2..], 10);
-                        self.cur_groff_font_num = font_num;
-                        self.cur_pdf_font_num = self.font_map.get(font_num);
-                        try self.cur_text_object.?.newLine();
-                        log.dbg("{d}: selecting font {d}, pdf num {d} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?.idx, self.cur_font_size orelse 11 });
-                        try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size orelse 11);
+                        try self.handle_f(line[2..]);
                     }
                 },
                 .n => {
