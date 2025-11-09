@@ -1,4 +1,7 @@
-//! gropdf-zig is a groff pdf output device
+//! gropdf-zig: a groff pdf output device
+//!
+//! use it as a standard stdin stdout pipeline filter
+//! groff -Z ... | grofpdf-zig > out.pdf
 
 const std = @import("std");
 const pdf = @import("pdf.zig");
