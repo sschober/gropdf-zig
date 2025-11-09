@@ -150,7 +150,6 @@ pub fn transpile(self: *Self) !u8 {
                                 const arg = it.next().?;
                                 const res = try std.fmt.parseUnsigned(usize, arg, 10);
                                 const unitsize = res / 72;
-                                //try stderr.print("setting unit scale to {d}\n", .{unitsize});
                                 pdf.UNITSCALE = unitsize;
                             },
                             .T => {
