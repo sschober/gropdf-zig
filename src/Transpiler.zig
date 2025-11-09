@@ -29,7 +29,7 @@ font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
 // transpilation state we use optionals here, as zig does not allow null pointers
 doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
-cur_pdf_font_num: ?pdf.Page.FontRef = null,
+cur_pdf_page_font_ref: ?pdf.Page.FontRef = null,
 cur_groff_font_num: ?usize = null,
 cur_font_size: usize = 11,
 cur_line_num: usize = 0,
@@ -95,9 +95,9 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
 fn handle_f(self: *Self, line: []u8) !void {
     const font_num = try std.fmt.parseUnsigned(usize, line, 10);
     self.cur_groff_font_num = font_num;
-    self.cur_pdf_font_num = self.page_font_map.get(font_num);
-    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_font_num.?, self.cur_font_size });
-    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, self.cur_font_size);
+    self.cur_pdf_page_font_ref = self.page_font_map.get(font_num);
+    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_page_font_ref.?, self.cur_font_size });
+    try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, self.cur_font_size);
 }
 
 /// begin a new page in pdf document, copy over the page dimensions from previous page
@@ -215,7 +215,7 @@ pub fn transpile(self: *Self) !u8 {
                     // sample: s11000
                     const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
                     self.cur_font_size = fontSize / pdf.UNITSCALE;
-                    try self.cur_text_object.?.selectFont(self.cur_pdf_font_num.?, fontSize / pdf.UNITSCALE);
+                    try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, fontSize / pdf.UNITSCALE);
                 },
                 .t => {
                     // typeset word
