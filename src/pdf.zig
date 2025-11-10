@@ -12,6 +12,8 @@ const String = []const u8;
 const ArrayList = std.array_list.Managed;
 
 // TODO read unitscale from device DESC file
+/// device dependent scaling factor for measures like page dimensions and font
+/// sizes
 pub var UNITSCALE: usize = 1000;
 
 /// header bytes which define pdf document version; the second line

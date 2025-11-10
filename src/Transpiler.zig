@@ -56,8 +56,8 @@ fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
     return FixPoint.from(zp.v, pdf.UNITSCALE);
 }
 
-/// compile time font mapping from groff names like TR and CR to pdf known
-/// names like Times_Roman and Courier
+/// compile time font mapping from groff names like `TR` and `CR` to pdf known
+/// names like `Times_Roman` and `Courier`
 const groff_to_pdf_font_map =
     std.StaticStringMap(pdf.StandardFonts).initComptime(.{ //
         .{ "TR", pdf.StandardFonts.Times_Roman }, //
