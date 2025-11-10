@@ -56,6 +56,16 @@ fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
     return FixPoint.from(zp.v, pdf.UNITSCALE);
 }
 
+/// compile time font mapping from groff names like TR and CR to pdf known
+/// names like Times_Roman and Courier
+const groff_to_pdf_font_map =
+    std.StaticStringMap(pdf.StandardFonts).initComptime(.{ //
+        .{ "TR", pdf.StandardFonts.Times_Roman }, //
+        .{ "TB", pdf.StandardFonts.Times_Bold }, //
+        .{ "TI", pdf.StandardFonts.Times_Italic }, //
+        .{ "CR", pdf.StandardFonts.Courier },
+    });
+
 /// handles a `x font TR 6` command
 fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
     const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
@@ -68,14 +78,8 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
         doc_font_ref = self.doc_font_map.get(grout_font_ref.idx).?;
     } else {
         // this is a new font, we did not see up until now...
-        if (std.mem.eql(u8, "TR", grout_font_ref.name)) {
-            doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Roman);
-        } else if (std.mem.eql(u8, "TB", grout_font_ref.name)) {
-            doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Bold);
-        } else if (std.mem.eql(u8, "TI", grout_font_ref.name)) {
-            doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Times_Italic);
-        } else if (std.mem.eql(u8, "CR", grout_font_ref.name)) {
-            doc_font_ref = try self.doc.?.addStandardFont(pdf.StandardFonts.Courier);
+        if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
+            doc_font_ref = try self.doc.?.addStandardFont(pdf_std_font);
         } else {
             log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
             return;
