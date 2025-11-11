@@ -209,6 +209,8 @@ pub fn transpile(self: *Self) !u8 {
                         try self.cur_text_object.?.addWordWithoutMove("\"");
                     } else if (std.mem.eql(u8, line[1..3], "rq")) {
                         try self.cur_text_object.?.addWordWithoutMove("\"");
+                    } else if (std.mem.eql(u8, line[1..3], "fi")) {
+                        try self.cur_text_object.?.addWordWithoutMove(std.fmt.comptimePrint("{c}", .{174}));
                     } else {
                         log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
                         try self.cur_text_object.?.addWordWithoutMove(line[1..]);

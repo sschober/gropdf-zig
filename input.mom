@@ -59,4 +59,13 @@ the following: \*[CODE]x font 38 TI\*[CODE X] to mount a certain
 font at a certain position, but pdf needs a font to be registered on
 the document level and then again at the page level. The first
 registration yields an object number, the second a page relative
-font number.
+font number. But from the driver, our \*[CODE]Transpiler\*[CODE X]
+we are not interessted in the object number, but the index under
+which the font was registered in the document's font list, which is
+not the same. We memorize both indices and use them during
+\*[CODE]fN\*[CODE X], a.ka. font select, operations.
+.PP
+Before registering a groff font with the document, we need to know
+how it is called in PDF. For that, we use a comptime zig map, called
+\*[CODE]StaticStringMap\*[CODE X], which is initialized and filled
+during compilation.
