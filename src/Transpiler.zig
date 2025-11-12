@@ -85,8 +85,8 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
             return;
         }
         // the glyph map helps us move the X position in PDF text objects forward
-        const glyph_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
-        try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_map);
+        const glyph_widths_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
+        try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_widths_map);
     }
     const page_font_ref = try self.doc.?.addFontRefTo(self.cur_page.?, doc_font_ref);
     log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
@@ -182,6 +182,15 @@ fn handle_x(self: *Self, line: []u8) !void {
         }
     }
 }
+
+/// maps groff out character names to ascii/pdf standard encoding codes
+const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
+    .{ "fi", 174 }, //
+    .{ "hy", 45 },
+    .{ "lq", 141 },
+    .{ "rq", 142 },
+});
+
 /// read grout from `reader` and output pdf to `writer`
 pub fn transpile(self: *Self) !u8 {
     while (self.reader.takeDelimiter('\n')) |opt_line| {
@@ -202,15 +211,8 @@ pub fn transpile(self: *Self) !u8 {
                 .C => {
                     // typeset glyph of special character id
                     // sample: Chy
-                    if (std.mem.eql(u8, line[1..3], "hy")) {
-                        // TODO replace `-` with real glyph from font
-                        try self.cur_text_object.?.addWordWithoutMove("-");
-                    } else if (std.mem.eql(u8, line[1..3], "lq")) {
-                        try self.cur_text_object.?.addWordWithoutMove("\"");
-                    } else if (std.mem.eql(u8, line[1..3], "rq")) {
-                        try self.cur_text_object.?.addWordWithoutMove("\"");
-                    } else if (std.mem.eql(u8, line[1..3], "fi")) {
-                        try self.cur_text_object.?.addWordWithoutMove(std.fmt.comptimePrint("{c}", .{174}));
+                    if (glyph_map.get(line[1..3])) |code| {
+                        try self.cur_text_object.?.addWordWithoutMove(&.{code});
                     } else {
                         log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
                         try self.cur_text_object.?.addWordWithoutMove(line[1..]);
@@ -226,8 +228,8 @@ pub fn transpile(self: *Self) !u8 {
                 .t => {
                     // typeset word
                     // sample: thello
-                    const glyph_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
-                    try self.cur_text_object.?.addWord(line[1..], glyph_map, self.cur_font_size);
+                    const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
+                    try self.cur_text_object.?.addWord(line[1..], glyph_widths_map, self.cur_font_size);
                 },
                 .w => {
                     // interword space
