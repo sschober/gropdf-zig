@@ -69,3 +69,10 @@ Before registering a groff font with the document, we need to know
 how it is called in PDF. For that, we use a comptime zig map, called
 \*[CODE]StaticStringMap\*[CODE X], which is initialized and filled
 during compilation.
+.HEADING 2 "Character Mapping and Ligatures"
+.PP
+.DROPCAP L 2
+igatures are special character combinations, like 'fi', or 'fl',
+that are commonly rendered as one special combined character.
+Typographically, this is because 'f' and 'i' for example can fit
+closer together than other character combinations.

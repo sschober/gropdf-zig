@@ -1511,6 +1511,240 @@ V558381
 t-
 v619
 n12000 0
+V595000
+p3
+V54000
+H349000
+x font 5 TR
+f5
+s11000
+V54000
+H349000
+x X ps: exec 0 setlinejoin
+V54000
+H349000
+x X ps: exec 0 setlinecap
+n12000 0
+s10500
+V54000
+H72000
+tSv
+H82930
+ten
+wh2625
+tSchober
+n12000 0
+V54000
+H210500
+n12000 0
+s9000
+V54000
+H273580
+tGR
+H285721
+tOPDF
+H308005
+t.ZIG
+wh2250
+tTEST
+n12000 0
+V58000
+H72000
+Dt 500 0
+H72000
+v250
+Dl 277000 0
+Dt 500 0
+H349000
+n12000 0
+x X pdf: markrestart
+x X ps:exec [/Dest /pdf:bm5 /View [/FitH -73961 u] /DEST pdfmark
+x X ps:exec [/Dest /pdf:bm5 /Title (Character Mapping and Ligatures) /Level 3 /OUT pdfmark
+V90000
+H72000
+x font 36 TB
+f36
+s13000
+V90000
+H72000
+mr 0 0 0
+x X ps: exec decornone
+V88397
+tCharacter
+wh3250
+tMapping
+wh3250
+tand
+wh3250
+tLigatur
+H252687
+tes
+n16039 0
+V106039
+H72000
+n16039 0
+V106039
+H72000
+f5
+s11000
+V106039
+H72000
+md
+x X ps: exec decornone
+n16039 0
+s35300
+V122078
+H72000
+tL
+V90000
+n0 0
+s11000
+V106039
+H96568
+tig
+H105071
+tatures
+wh4230
+tare
+wh4230
+tspecial
+wh4229
+tcharacter
+wh4229
+tcombinations,
+wh4229
+tlik
+H310303
+te
+wh4229
+Ccq
+h3663
+Cfi
+h6116
+Ccq
+h3663
+t,
+wh4229
+tor
+n16039 0
+V122078
+H96568
+Ccq
+h3663
+Cfl
+h6116
+Ccq
+h3663
+t,
+wh5321
+tthat
+wh5321
+tare
+wh5322
+tcommonly
+wh5322
+trendered
+wh5322
+tas
+wh5322
+tone
+wh5322
+tspecial
+wh5322
+tcom
+Chy
+h3663
+n16039 0
+V138117
+H72000
+tbined
+wh3124
+tcharacter
+H139265
+t.
+wh3124
+tT
+H150980
+typographically
+H216254
+t,
+wh3124
+tthis
+wh3124
+tis
+wh3124
+tbecause
+wh3124
+Ccq
+h3663
+tf
+Ccq
+wh6787
+tand
+wh3123
+Ccq
+h3663
+ti
+Ccq
+wh6786
+tfor
+n16039 0
+V154156
+H72000
+te
+H76719
+txample
+wh3717
+tcan
+wh3717
+Cfi
+h6116
+tt
+wh3718
+tcloser
+wh3718
+ttogether
+wh3718
+tthan
+wh3718
+tother
+wh3718
+tcharacter
+wh3718
+tcombina
+Chy
+h3663
+n16039 0
+V170195
+H72000
+ttions.
+n16039 0
+x X pdf: marksuspend
+V182195
+H72000
+s10000
+V182195
+H72000
+x X ps: exec decornone
+n12000 0
+V182195
+H72000
+s11000
+V182195
+H72000
+x X ps: exec decornone
+n12000 0
+V558381
+H203169
+t-
+h918
+v619
+t3
+h918
+V558381
+t-
+v619
+n12000 0
 x trailer
 V595000
 x stop
