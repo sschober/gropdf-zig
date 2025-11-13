@@ -1,6 +1,7 @@
 //! PDF object model and functions
 //!
-//! implements PDF version 1.1 as defined in [Adobe PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)
+//! implements PDF version 1.1 as defined increase
+//! [Adobe PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf#page412)
 //! (pdfref17)
 const std = @import("std");
 const FixPoint = @import("FixPoint.zig");
@@ -86,6 +87,7 @@ pub const Pages = struct {
         , .{self.kids.items.len});
     }
 
+    /// init a new Page object and add it to this Pages collection and return the Page object
     fn addPage(self: *Pages, n: usize, c: *Stream) !*Page {
         const res = try self.allocator.create(Page);
         res.* = Page.init(self.allocator, n, self.objNum, c);
@@ -313,7 +315,7 @@ pub const Page = struct {
     x: usize = 612,
     y: usize = 792,
 
-    /// Font registered on a page are assigned an index. This struct
+    /// Fonts registered on a page are assigned an index. This struct
     /// captures the index and the fact, that the font was
     /// registered.
     pub const FontRef = struct {
@@ -326,6 +328,7 @@ pub const Page = struct {
     pub fn init(allocator: Allocator, n: usize, p: usize, c: *Stream) Page {
         return Page{ .allocator = allocator, .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
     }
+    /// iterates over resources list and renders /Fn k 0 R pdf object references
     pub fn resString(self: Page) !String {
         var res = ArrayList(u8).init(self.allocator);
         try res.writer().print("<<\n", .{});
