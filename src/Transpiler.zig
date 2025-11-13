@@ -186,9 +186,11 @@ fn handle_x(self: *Self, line: []u8) !void {
 /// maps groff out character names to ascii/pdf standard encoding codes
 const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
     .{ "fi", 174 }, //
+    .{ "fl", 175 },
     .{ "hy", 45 },
     .{ "lq", 141 },
     .{ "rq", 142 },
+    .{ "cq", 0o251 },
 });
 
 /// read grout from `reader` and output pdf to `writer`
@@ -280,7 +282,6 @@ pub fn transpile(self: *Self) !u8 {
                     log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
                 },
             }
-            try self.writer.flush();
         } else {
             break;
         }
