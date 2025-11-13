@@ -202,7 +202,7 @@ pub fn transpile(self: *Self) !u8 {
             }
             self.cur_line_num += 1;
             if (line[0] == '+') {
-                //std.debug.print("{d}: ignoring + line\n", .{lineNum});
+                log.dbg("{d}: ignoring + line\n", .{self.cur_line_num});
                 continue;
             }
             const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
