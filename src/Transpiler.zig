@@ -13,20 +13,21 @@ const Self = @This();
 
 allocator: Allocator,
 
-/// could be stdin or a file
+/// where to read grout input from - could be stdin or a file
 reader: *std.Io.Reader,
-/// could be stdout or a file
+
+/// where to write the rendered PDF output to - could be stdout or a file
 writer: *std.Io.Writer,
 
 // maps grout font numbers to pdf page font references
 page_font_map: std.AutoHashMap(usize, pdf.Page.FontRef),
-// maps grout font numbers to pdf dox font references
+// maps grout font numbers to pdf doc font references
 doc_font_map: std.AutoHashMap(usize, pdf.Document.FontRef),
 
 // maps pdf font numbers to glyph widths maps
 font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
 
-// transpilation state we use optionals here, as zig does not allow null pointers
+// transpilation state - we use optionals here, as zig does not allow null pointers
 doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
 cur_pdf_page_font_ref: ?pdf.Page.FontRef = null,
@@ -57,7 +58,8 @@ fn fixPointFromZPos(zp: groff.zPosition) FixPoint {
 }
 
 /// compile time font mapping from groff names like `TR` and `CR` to pdf known
-/// names like `Times_Roman` and `Courier`
+/// names like `Times_Roman` and `Courier` - we have captured the latter in a
+/// pdf standard fonts enum
 const groff_to_pdf_font_map =
     std.StaticStringMap(pdf.StandardFonts).initComptime(.{ //
         .{ "TR", pdf.StandardFonts.Times_Roman }, //
@@ -72,7 +74,7 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
     const font_name = it.next().?;
     const grout_font_ref = groff.FontRef{ .name = font_name, .idx = font_num };
     var doc_font_ref: pdf.Document.FontRef = pdf.Document.FontRef{ .idx = 0 };
-    // we need to decide, if we need to register the font at the document level, or if we already did
+    // did we already register the font at the document level, or do we need to do it?
     if (self.doc_font_map.contains(grout_font_ref.idx)) {
         log.dbg("{d}: not adding {f} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref });
         doc_font_ref = self.doc_font_map.get(grout_font_ref.idx).?;
@@ -84,7 +86,7 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
             log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
             return;
         }
-        // the glyph map helps us move the X position in PDF text objects forward
+        // the glyph map helps us move the x position in PDF text objects forward
         const glyph_widths_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
         try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_widths_map);
     }
@@ -93,9 +95,9 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
     try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
 }
 
-/// handle grout fN command - parses N usize argument, selects font from page
+/// handle grout `fN` command - parses N as usize argument, selects font from page
 /// font map and selects the font in the current text object
-/// sample: f5
+/// sample: `f5`
 fn handle_f(self: *Self, line: []u8) !void {
     const font_num = try std.fmt.parseUnsigned(usize, line, 10);
     self.cur_groff_font_num = font_num;
@@ -105,7 +107,7 @@ fn handle_f(self: *Self, line: []u8) !void {
 }
 
 /// begin a new page in pdf document, copy over the page dimensions from previous page
-/// sample: p 2
+/// sample: `p2`
 fn handle_p(self: *Self) !void {
     self.cur_page = try self.doc.?.addPage();
     if (self.cur_x > 0) {
@@ -116,7 +118,6 @@ fn handle_p(self: *Self) !void {
     }
     self.cur_text_object = self.cur_page.?.contents.textObject;
 }
-const XCommandError = error{WrongDevice} || Allocator.Error;
 
 /// relative horizontal positioning
 fn handle_h(self: *Self, line: []u8) !void {
@@ -124,8 +125,12 @@ fn handle_h(self: *Self, line: []u8) !void {
     try self.cur_text_object.?.addE(fixPointFromZPos(h));
 }
 
+/// our custom error type for communicating situations back up to the caller,
+/// which we cannot ignore or handle other wise
+const XCommandError = error{WrongDevice} || Allocator.Error;
+
 /// device control command
-/// sample: x X papersize
+/// sample: `x X papersize`
 fn handle_x(self: *Self, line: []u8) !void {
     if (line.len > 2) {
         var it = std.mem.splitScalar(u8, line[2..], ' ');
