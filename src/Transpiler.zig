@@ -118,6 +118,12 @@ fn handle_p(self: *Self) !void {
 }
 const XCommandError = error{WrongDevice} || Allocator.Error;
 
+/// relative horizontal positioning
+fn handle_h(self: *Self, line: []u8) !void {
+    const h = try groff.zPosition.fromString(line);
+    try self.cur_text_object.?.addE(fixPointFromZPos(h));
+}
+
 /// device control command
 /// sample: x X papersize
 fn handle_x(self: *Self, line: []u8) !void {
@@ -237,8 +243,7 @@ pub fn transpile(self: *Self) !u8 {
                     // interword space
                     // sample: wh2750
                     if (line[1] == 'h') {
-                        const h = try groff.zPosition.fromString(line[2..]);
-                        try self.cur_text_object.?.addE(fixPointFromZPos(h));
+                        try self.handle_h(line[2..]);
                     } else if (line[1] == 'x') {
                         try self.handle_x(line[1..]);
                     } else if (line[1] == 'f') {
@@ -264,8 +269,7 @@ pub fn transpile(self: *Self) !u8 {
                 .h => {
                     // horizontal relative positioning
                     // sample: h918
-                    const h = try groff.zPosition.fromString(line[1..]);
-                    try self.cur_text_object.?.addE(fixPointFromZPos(h));
+                    try self.handle_h(line[1..]);
                 },
                 .v => {
                     // we ignore `v` as it seems the absolute positioning commands are enough
