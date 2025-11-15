@@ -199,7 +199,79 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
     .{ "cq", 0o251 },
 });
 
-/// read grout from `reader` and output pdf to `writer`
+/// handle a groff out command
+/// tries to convert the first character of line to a groff.Out enum and
+/// dispatches to the handler functions
+fn handle_cmd(self: *Self, line: []u8) !void {
+    const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
+    switch (cmd) {
+        .p => try self.handle_p(),
+        .f => try self.handle_f(line[1..]),
+        .x => try self.handle_x(line),
+        .C => {
+            // typeset glyph of special character id
+            // sample: Chy
+            if (glyph_map.get(line[1..3])) |code| {
+                try self.cur_text_object.?.addWordWithoutMove(&.{code});
+            } else {
+                log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
+                try self.cur_text_object.?.addWordWithoutMove(line[1..]);
+            }
+        },
+        .s => {
+            // set type size
+            // sample: s11000
+            const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
+            self.cur_font_size = fontSize / pdf.UNITSCALE;
+            try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, fontSize / pdf.UNITSCALE);
+        },
+        .t => {
+            // typeset word
+            // sample: thello
+            const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
+            try self.cur_text_object.?.addWord(line[1..], glyph_widths_map, self.cur_font_size);
+        },
+        .w => {
+            // interword space - has no function and is immediately followed by
+            // another command; so we skip one character in line and recurse
+            // sample: wh2750
+            try self.handle_cmd(line[1..]);
+        },
+        .n => {
+            // new line command
+            // sample: n12000 0
+            try self.cur_text_object.?.newLine();
+        },
+        .V => {
+            // vertical absolute positioning
+            // sample: V151452
+            const v_z = try groff.zPosition.fromString(line[1..]);
+            var v = fixPointFromZPos(v_z);
+            if (v.integer <= self.cur_page.?.y) {
+                v = v.subtractFrom(self.cur_page.?.y);
+                try self.cur_text_object.?.setF(v);
+            }
+        },
+        .h => {
+            // horizontal relative positioning
+            // sample: h918
+            try self.handle_h(line[1..]);
+        },
+        .v => {
+            // we ignore `v` as it seems the absolute positioning commands are enough
+        },
+        .H => {
+            // horizontal absolute positioning
+            // sample: H72000
+            const h_z = try groff.zPosition.fromString(line[1..]);
+            try self.cur_text_object.?.setE(fixPointFromZPos(h_z));
+        },
+        else => {
+            log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
+        },
+    }
+}
+/// read groff out from `reader` and output pdf to `writer`
 pub fn transpile(self: *Self) !u8 {
     while (self.reader.takeDelimiter('\n')) |opt_line| {
         if (opt_line) |line| {
@@ -211,87 +283,15 @@ pub fn transpile(self: *Self) !u8 {
                 log.dbg("{d}: ignoring + line\n", .{self.cur_line_num});
                 continue;
             }
-            const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
-            switch (cmd) {
-                .p => try self.handle_p(),
-                .f => try self.handle_f(line[1..]),
-                .x => try self.handle_x(line),
-                .C => {
-                    // typeset glyph of special character id
-                    // sample: Chy
-                    if (glyph_map.get(line[1..3])) |code| {
-                        try self.cur_text_object.?.addWordWithoutMove(&.{code});
-                    } else {
-                        log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
-                        try self.cur_text_object.?.addWordWithoutMove(line[1..]);
-                    }
-                },
-                .s => {
-                    // set type size
-                    // sample: s11000
-                    const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
-                    self.cur_font_size = fontSize / pdf.UNITSCALE;
-                    try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, fontSize / pdf.UNITSCALE);
-                },
-                .t => {
-                    // typeset word
-                    // sample: thello
-                    const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
-                    try self.cur_text_object.?.addWord(line[1..], glyph_widths_map, self.cur_font_size);
-                },
-                .w => {
-                    // interword space
-                    // sample: wh2750
-                    if (line[1] == 'h') {
-                        try self.handle_h(line[2..]);
-                    } else if (line[1] == 'x') {
-                        try self.handle_x(line[1..]);
-                    } else if (line[1] == 'f') {
-                        // wf5
-                        try self.handle_f(line[2..]);
-                    }
-                },
-                .n => {
-                    // new line command
-                    // sample: n12000 0
-                    try self.cur_text_object.?.newLine();
-                },
-                .V => {
-                    // vertical absolute positioning
-                    // sample: V151452
-                    const v_z = try groff.zPosition.fromString(line[1..]);
-                    var v = fixPointFromZPos(v_z);
-                    if (v.integer <= self.cur_page.?.y) {
-                        v = v.subtractFrom(self.cur_page.?.y);
-                        try self.cur_text_object.?.setF(v);
-                    }
-                },
-                .h => {
-                    // horizontal relative positioning
-                    // sample: h918
-                    try self.handle_h(line[1..]);
-                },
-                .v => {
-                    // we ignore `v` as it seems the absolute positioning commands are enough
-                },
-                .H => {
-                    // horizontal absolute positioning
-                    // sample: H72000
-                    const h_z = try groff.zPosition.fromString(line[1..]);
-                    try self.cur_text_object.?.setE(fixPointFromZPos(h_z));
-                },
-                else => {
-                    log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
-                },
-            }
+            try self.handle_cmd(line);
         } else {
             break;
         }
     } else |_| {
         // nothing left to read any more
     }
-    if (self.doc) |renderedPdf| {
-        try self.writer.print("{f}", .{renderedPdf});
+    if (self.doc) |pdf_doc| {
+        try self.writer.print("{f}", .{pdf_doc});
     }
     try self.writer.flush();
     return 0;
