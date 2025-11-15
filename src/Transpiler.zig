@@ -256,9 +256,7 @@ pub fn transpile(self: *Self) !u8 {
                     // sample: V151452
                     const v_z = try groff.zPosition.fromString(line[1..]);
                     var v = fixPointFromZPos(v_z);
-                    //try stderr.print("v_y: {d} v: {f} ", .{ v_z.v, v });
                     if (v.integer <= self.cur_page.?.y) {
-                        //-v.integer = curPage.?.y - v.integer;
                         v = v.subtractFrom(self.cur_page.?.y);
                         try self.cur_text_object.?.setF(v);
                     }
