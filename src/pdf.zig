@@ -102,6 +102,56 @@ pub const Pages = struct {
     }
 };
 
+pub const GraphicalObject = struct {
+    allocator: Allocator,
+    cur_line: ArrayList(u8),
+    lines: ArrayList(String),
+    cur_x: FixPoint = FixPoint{},
+    cur_y: FixPoint = FixPoint{},
+    cur_thicknes: FixPoint = FixPoint{},
+    pub fn init(allocator: Allocator) !*GraphicalObject {
+        const res = try allocator.create(GraphicalObject);
+        res.* = GraphicalObject{
+            .allocator = allocator, //
+            .cur_line = ArrayList(u8).init(allocator),
+            .lines = ArrayList(String).init(allocator),
+        };
+        return res;
+    }
+    pub fn setX(self: *GraphicalObject, x: FixPoint) !void {
+        self.cur_x = x;
+    }
+    pub fn setY(self: *GraphicalObject, y: FixPoint) !void {
+        self.cur_y = y;
+    }
+    /// append `s` to the internal lines array list
+    fn flushLine(self: *GraphicalObject, s: String) !void {
+        try self.lines.append(s);
+    }
+    /// flush the current line and initialize a new one
+    fn newLine(self: *GraphicalObject) !void {
+        if (self.cur_line.items.len > 0) {
+            try self.flushLine(self.cur_line.items);
+            self.cur_line = ArrayList(u8).init(self.allocator);
+        }
+    }
+    pub fn lineTo(self: *GraphicalObject, d_x: FixPoint, d_y: FixPoint) !void {
+        try self.newLine();
+        const x = self.cur_x.addTo(d_x);
+        const y = self.cur_y.addTo(d_y);
+        log.dbg("pdf: line from {f} {f} to {f} {f}\n", .{ self.cur_x, self.cur_y, x, y });
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, //
+            "{f} {f} m {f} {f} l S", .{ self.cur_x, self.cur_y, x, y }));
+    }
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        for (self.lines.items) |line| {
+            try writer.print("{s}\n", .{line});
+        }
+    }
+};
 /// pdf text object api - acts like a buffer, saving commands in its state
 /// which are rendered out when the object is formatted. internally, it uses
 /// an array of lines, and a current line buffer. implements relative positioning.
@@ -218,17 +268,24 @@ pub const Stream = struct {
     allocator: Allocator,
     objNum: usize,
     textObject: *TextObject,
+    graphicalObject: *GraphicalObject,
 
     pub fn init(allocator: Allocator, n: usize) !*Stream {
         const res = try allocator.create(Stream);
-        res.* = Stream{ .allocator = allocator, .objNum = n, .textObject = try TextObject.init(allocator) };
+        res.* = Stream{
+            .allocator = allocator, //
+            .objNum = n,
+            .textObject = try TextObject.init(allocator),
+            .graphicalObject = try GraphicalObject.init(allocator),
+        };
         return res;
     }
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
-        const stream = std.fmt.allocPrint(self.allocator, "{f}", .{self.textObject}) catch "";
+        const stream = std.fmt.allocPrint(self.allocator, //
+            "{f}\n{f}", .{ self.graphicalObject, self.textObject }) catch "";
         try writer.print(
             \\<<
             \\/Length {d}

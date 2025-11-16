@@ -204,6 +204,26 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
     .{ "cq", 0o251 },
 });
 
+fn handle_D(self: *Self, line: []u8) !void {
+    var it = std.mem.splitScalar(u8, line, ' ');
+    const sub_cmd = it.next().?;
+    log.dbg("sub cmd: {s}\n", .{sub_cmd});
+    const sub_cmd_enum = std.meta.stringToEnum(groff.DSubCommand, sub_cmd).?;
+    switch (sub_cmd_enum) {
+        .l => {
+            const zX = it.next().?;
+            log.dbg("zX: {s}", .{zX});
+            const zPosX = try groff.zPosition.fromString(zX);
+            const x = fixPointFromZPos(zPosX);
+            const zY = it.next().?;
+            log.dbg("zY: {s}", .{zY});
+            const zPosY = try groff.zPosition.fromString(zY);
+            const y = fixPointFromZPos(zPosY);
+            try self.cur_page.?.contents.graphicalObject.lineTo(x, y);
+        },
+        else => {},
+    }
+}
 /// handle a groff out command
 /// tries to convert the first character of line to a groff.Out enum and
 /// dispatches to the handler functions
@@ -222,6 +242,12 @@ fn handle_cmd(self: *Self, line: []u8) !void {
                 log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
                 try self.cur_text_object.?.addWordWithoutMove(line[1..]);
             }
+        },
+        .D => {
+            // samples:
+            // Dl 277000 0
+            // Dt 500 0
+            try self.handle_D(line[1..]);
         },
         .s => {
             // set type size
@@ -255,6 +281,7 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             if (v.integer <= self.cur_page.?.y) {
                 v = v.subtractFrom(self.cur_page.?.y);
                 try self.cur_text_object.?.setF(v);
+                try self.cur_page.?.contents.graphicalObject.setY(v);
             }
         },
         .h => {
@@ -269,7 +296,9 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             // horizontal absolute positioning
             // sample: H72000
             const h_z = try groff.zPosition.fromString(line[1..]);
-            try self.cur_text_object.?.setE(fixPointFromZPos(h_z));
+            const fp_h = fixPointFromZPos(h_z);
+            try self.cur_text_object.?.setE(fp_h);
+            try self.cur_page.?.contents.graphicalObject.setX(fp_h);
         },
         else => {
             log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });

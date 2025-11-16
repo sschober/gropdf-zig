@@ -39,6 +39,14 @@ pub const Out = enum {
     n,
 };
 
+/// drawing sub commands
+pub const DSubCommand = enum {
+    /// thickness
+    t,
+    /// line to
+    l,
+    Fd,
+};
 /// sub commands for x/device control commands
 pub const XSubCommand = enum {
     /// typesetter control command - choses which type of output should be
