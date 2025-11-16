@@ -123,7 +123,6 @@ pub const TextObject = struct {
     f: FixPoint = FixPoint{},
     /// inter-word whitespace
     w: FixPoint = FixPoint{},
-    skip_last_word: bool = false,
     /// initialze a new text object and its members
     pub fn init(allocator: Allocator) !*TextObject {
         const res = try allocator.create(TextObject);
@@ -155,9 +154,6 @@ pub const TextObject = struct {
         self.e = h;
         //try self.addComment(try std.fmt.allocPrint(self.allocator, "H: {f} ", .{h}));
         try self.flushPos();
-    }
-    pub fn skipLastWord(self: *TextObject) void {
-        self.skip_last_word = true;
     }
     /// increment x position by h, flush current line and init a new one
     pub fn addE(self: *TextObject, h: FixPoint) !void {
