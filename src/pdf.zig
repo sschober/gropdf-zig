@@ -174,16 +174,6 @@ pub const TextObject = struct {
     pub fn setLeading(self: *TextObject, l: usize) !void {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} TL", .{l}));
     }
-    pub fn setInterwordSpace(self: *TextObject, h: usize) !void {
-        // TODO read space_width from font
-        const space_width = 2765;
-        const delta = @min(h, space_width);
-        const newInterwordSpace = FixPoint.from(h - delta, UNITSCALE);
-        if (!std.meta.eql(newInterwordSpace, self.w)) {
-            self.w = FixPoint.from(h - delta, UNITSCALE);
-            try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
-        }
-    }
     /// add a word to the current text object and increase the internal x coordinate by a computed length.
     /// that's why we need the glyph width map for the current font and the current font size
     pub fn addWord(self: *TextObject, s: String, glyph_widths: [257]usize, font_size: usize) !void {
