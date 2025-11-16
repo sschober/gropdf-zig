@@ -184,12 +184,6 @@ pub const TextObject = struct {
             try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d}.{d} Tw", .{ self.w.integer, self.w.fraction }));
         }
     }
-    pub fn addHorizontalSpace(self: *TextObject, h: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{d} 0 Td", .{h}));
-    }
-    pub fn addVerticalSpace(self: *TextObject, v: usize) !void {
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "0 {d} Td", .{v}));
-    }
     /// add a word to the current text object and increase the internal x coordinate by a computed length.
     /// that's why we need the glyph width map for the current font and the current font size
     pub fn addWord(self: *TextObject, s: String, glyph_widths: [257]usize, font_size: usize) !void {
