@@ -33,16 +33,11 @@ At the moment, we implement a _small subset_ of the `grout` language only:
 
 * We support only a single font, "Times New Roman", as that can be
 referenced very easily in PDF, without the need to embed it.
-* No drawing commands are interpreted.
+* Only line drawing commands are interpreted - enough for header or
+  footer lines
 
-Next to obviously missing elements like header rules, which are
-created using drawing commands, the resulting PDF has some, let's
-call them inefficiencies. A lot of similar commands are issued in
-sequence, which could be compacted. As a lot of this is already
-present in the input, I chose to ignore it at the moment.
-
-We could reduce the resulting PDF file size by using zflate compression, but at
-the moment I do not see any need for this.
+We could reduce the resulting PDF file size by using zflate
+compression, but at the moment I do not see any need for this.
 
 ## Usage
 
