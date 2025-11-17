@@ -76,3 +76,22 @@ igatures are special character combinations, like 'fi', or 'fl',
 that are commonly rendered as one special combined character.
 Typographically, this is because 'f' and 'i' for example can fit
 closer together than other character combinations.
+.PP
+PDF has a so called standard encoding, where these ligatures are
+assigned to certain code points. So, I used a zig compile time hash
+map to map the grout glyph names to these code points.
+.HEADING 2 "Drawing Commands"
+.PP
+.DROPCAP I 2
+just came around to implement drawing commands, \*[CODE]Dl\*[CODE X]
+and \*[CODE]Dl\*[CODE X]\&.
+Just enough to have the header rule
+render correctly. In PDF I just had to put some  \*[CODE]m\*[CODE X] 
+and  \*[CODE]l\*[CODE X] and  \*[CODE]S\*[CODE X] commands and
+implementation wise I could heavily rely on what was already
+present in  \*[CODE]TextObject\*[CODE X]\&.
+.PP
+Based on that, I introduced a \*[CODE]GraphicalObject\*[CODE X] that
+has very similar structure as \*[CODE]TextObject\*[CODE X], a line
+buffer and buffered lines, which can be rendered out to the PDF file
+at the end of processing.
