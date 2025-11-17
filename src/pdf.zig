@@ -135,6 +135,7 @@ pub const GraphicalObject = struct {
             self.cur_line = ArrayList(u8).init(self.allocator);
         }
     }
+    /// draw a line from current position to given
     pub fn lineTo(self: *GraphicalObject, d_x: FixPoint, d_y: FixPoint) !void {
         try self.newLine();
         const x = self.cur_x.addTo(d_x);
@@ -142,6 +143,11 @@ pub const GraphicalObject = struct {
         log.dbg("pdf: line from {f} {f} to {f} {f}\n", .{ self.cur_x, self.cur_y, x, y });
         try self.lines.append(try std.fmt.allocPrint(self.allocator, //
             "{f} {f} m {f} {f} l S", .{ self.cur_x, self.cur_y, x, y }));
+    }
+    /// set line width for drawing
+    pub fn lineWidth(self: *GraphicalObject, t: FixPoint) !void {
+        try self.newLine();
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} w", .{t}));
     }
     pub fn format(
         self: @This(),

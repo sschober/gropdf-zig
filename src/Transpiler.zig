@@ -221,6 +221,13 @@ fn handle_D(self: *Self, line: []u8) !void {
             const y = fixPointFromZPos(zPosY);
             try self.cur_page.?.contents.graphicalObject.lineTo(x, y);
         },
+        .t => {
+            const zT = it.next().?;
+            log.dbg("zT: {s}", .{zT});
+            const zTNum = try std.fmt.parseUnsigned(usize, zT, 10);
+            const zTScaled = FixPoint.from(zTNum, pdf.UNITSCALE);
+            try self.cur_page.?.contents.graphicalObject.lineWidth(zTScaled);
+        },
         else => {},
     }
 }
