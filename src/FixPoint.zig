@@ -14,6 +14,7 @@ pub fn format(
 ) std.Io.Writer.Error!void {
     try writer.print("{d}.{d:03}", .{ self.integer, self.fraction });
 }
+/// create a new fix point fraction from the given nominator and denominator
 pub fn from(n: usize, d: usize) Self {
     var result = Self{};
     result.integer = n / d;
@@ -31,6 +32,7 @@ pub fn from(n: usize, d: usize) Self {
     return result;
 }
 
+/// subtract self from the given FixPoint parameter ans return a new object
 pub fn subtractFrom(self: Self, n: usize) Self {
     var result = Self{};
     result.integer = n - self.integer;
@@ -42,6 +44,7 @@ pub fn subtractFrom(self: Self, n: usize) Self {
     return result;
 }
 
+/// add self to the given FixPoint parameter and return a new object
 pub fn addTo(self: Self, o: Self) Self {
     var result = self;
     result.integer += o.integer;
@@ -53,6 +56,7 @@ pub fn addTo(self: Self, o: Self) Self {
     return result;
 }
 
+/// multiply self with the other operand and return a new object
 pub fn mult(self: Self, o: Self) Self {
     var result = Self{};
     result.integer = self.integer * o.integer;
