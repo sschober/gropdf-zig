@@ -175,12 +175,14 @@ n16039 0
 s35300
 V202273
 H72000
+mr 42662 11822 17476
 tT
 V170195
 n0 0
 s11000
 V186234
 H96568
+mr 0 0 0
 this
 wh7324
 Cfi
@@ -265,7 +267,6 @@ f36
 s13000
 V266429
 H72000
-mr 0 0 0
 x X ps: exec decornone
 V264826
 tCurr
@@ -280,7 +281,6 @@ f5
 s11000
 V282468
 H72000
-md
 x X ps: exec decornone
 n16039 0
 s35300
@@ -727,6 +727,7 @@ H72000
 s10000
 V535053
 H72000
+md
 x X ps: exec decornone
 n12000 0
 s11000
@@ -791,6 +792,7 @@ x X pdf: markrestart
 s11000
 V90000
 H72000
+mr 0 0 0
 twe
 wh4795
 tha
@@ -1036,7 +1038,6 @@ f36
 s13000
 V282468
 H72000
-mr 0 0 0
 x X ps: exec decornone
 V280865
 tF
@@ -1051,7 +1052,6 @@ f5
 s11000
 V298507
 H72000
-md
 x X ps: exec decornone
 n16039 0
 s35300
@@ -1491,6 +1491,7 @@ H72000
 s10000
 V535053
 H72000
+md
 x X ps: exec decornone
 n12000 0
 V535053
@@ -1589,7 +1590,6 @@ f5
 s11000
 V106039
 H72000
-md
 x X ps: exec decornone
 n16039 0
 s35300
@@ -1818,7 +1818,6 @@ f36
 s13000
 V266429
 H72000
-mr 0 0 0
 x X ps: exec decornone
 V264826
 tDrawing
@@ -1831,7 +1830,6 @@ f5
 s11000
 V282468
 H72000
-md
 x X ps: exec decornone
 n16039 0
 s35300
@@ -2083,6 +2081,7 @@ H72000
 s10000
 V422780
 H72000
+md
 x X ps: exec decornone
 n12000 0
 V422780

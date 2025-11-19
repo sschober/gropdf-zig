@@ -4,10 +4,13 @@
 .PRINTSTYLE TYPESET
 .PAPER A5
 .PT_SIZE 11
+.NEWCOLOR mdr RGB #A62E44
 .START
 .HEADING 1 "Introduction and Motivation"
 .PP
+.COLOR mdr
 .DROPCAP T 2
+.COLOR black
 his file contains only some paragraphs of text. Its purpose is to
 showcase some of groff's features und highlight potential rendering
 problems in my custom PDF backend, gropdf.zig.
