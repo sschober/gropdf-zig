@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const String = []const u8;
 const Self = @This();
 
 /// 3 digit exact point decimal - why? because, I think, we do not need
@@ -13,6 +14,16 @@ pub fn format(
     writer: *std.Io.Writer,
 ) std.Io.Writer.Error!void {
     try writer.print("{d}.{d:03}", .{ self.integer, self.fraction });
+}
+/// convenience constructor the tries to parse args as usizes
+pub fn from_strings(n_str: String, d_str: String) !Self {
+    const n = try std.fmt.parseUnsigned(usize, n_str, 10);
+    const d = try std.fmt.parseUnsigned(usize, d_str, 10);
+    return Self.from(n, d);
+}
+pub fn from_n_string(n_str: String, d: usize) !Self {
+    const n = try std.fmt.parseUnsigned(usize, n_str, 10);
+    return Self.from(n, d);
 }
 /// create a new fix point fraction from the given nominator and denominator
 pub fn from(n: usize, d: usize) Self {
