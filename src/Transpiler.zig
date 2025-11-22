@@ -231,6 +231,27 @@ fn handle_D(self: *Self, line: []u8) !void {
         else => {},
     }
 }
+
+fn handle_m(self: *Self, line: []u8) !void {
+    const sub_cmd = std.meta.stringToEnum(groff.MSubCommand, line[0..1]).?;
+    switch (sub_cmd) {
+        .d => {
+            try self.cur_text_object.?.setFillColorBlack();
+        },
+        .r => {
+            var it = std.mem.splitScalar(u8, line[2..], ' ');
+            const r_groff = it.next().?;
+            const r_pdf = try FixPoint.from_n_string(r_groff, 65535);
+            const g_groff = it.next().?;
+            const g_pdf = try FixPoint.from_n_string(g_groff, 65535);
+            const b_groff = it.next().?;
+            const b_pdf = try FixPoint.from_n_string(b_groff, 65535);
+            log.dbg("setting stroke color: {f} {f} {f}\n", .{ r_pdf, g_pdf, b_pdf });
+            try self.cur_text_object.?.setFillColor(r_pdf, b_pdf, g_pdf);
+        },
+    }
+}
+
 /// handle a groff out command
 /// tries to convert the first character of line to a groff.Out enum and
 /// dispatches to the handler functions
@@ -256,6 +277,7 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             // Dt 500 0
             try self.handle_D(line[1..]);
         },
+        .m => try self.handle_m(line[1..]),
         .s => {
             // set type size
             // sample: s11000
@@ -306,9 +328,6 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             const fp_h = fixPointFromZPos(h_z);
             try self.cur_text_object.?.setE(fp_h);
             try self.cur_page.?.contents.graphicalObject.setX(fp_h);
-        },
-        else => {
-            log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line });
         },
     }
 }

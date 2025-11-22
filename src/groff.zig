@@ -38,7 +38,13 @@ pub const Out = enum {
     /// next line
     n,
 };
-
+/// select stroke color
+pub const MSubCommand = enum {
+    /// use default color
+    d,
+    /// use color R G B
+    r,
+};
 /// drawing sub commands
 pub const DSubCommand = enum {
     /// thickness
@@ -46,6 +52,7 @@ pub const DSubCommand = enum {
     /// line to
     l,
     Fd,
+    Fr,
 };
 /// sub commands for x/device control commands
 pub const XSubCommand = enum {

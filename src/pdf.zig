@@ -204,6 +204,14 @@ pub const TextObject = struct {
             try self.lines.append(newTm);
         }
     }
+    pub fn setFillColorBlack(self: *TextObject) !void {
+        try self.newLine();
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "0.0 g", .{}));
+    }
+    pub fn setFillColor(self: *TextObject, r: FixPoint, g: FixPoint, b: FixPoint) !void {
+        try self.newLine();
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} {f} {f} rg", .{ r, g, b }));
+    }
     /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: FixPoint) !void {
         try self.newLine();
