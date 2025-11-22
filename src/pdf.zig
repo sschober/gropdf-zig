@@ -158,6 +158,19 @@ pub const GraphicalObject = struct {
         }
     }
 };
+
+/// pdf RGB color - each dimension is a value from 0 to 1
+pub const RgbColor = struct {
+    r: FixPoint = FixPoint{},
+    g: FixPoint = FixPoint{},
+    b: FixPoint = FixPoint{},
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        try writer.print("{f} {f} {f}", .{ self.r, self.g, self.b });
+    }
+};
 /// pdf text object api - acts like a buffer, saving commands in its state
 /// which are rendered out when the object is formatted. internally, it uses
 /// an array of lines, and a current line buffer. implements relative positioning.
@@ -208,9 +221,9 @@ pub const TextObject = struct {
         try self.newLine();
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "0.0 g", .{}));
     }
-    pub fn setFillColor(self: *TextObject, r: FixPoint, g: FixPoint, b: FixPoint) !void {
+    pub fn setFillColor(self: *TextObject, c: RgbColor) !void {
         try self.newLine();
-        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} {f} {f} rg", .{ r, g, b }));
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} rg", .{c}));
     }
     /// set `e` position - aka x coordinate - also issues a Tm command
     pub fn setE(self: *TextObject, h: FixPoint) !void {

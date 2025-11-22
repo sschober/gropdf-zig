@@ -8,7 +8,6 @@ const log = @import("log.zig");
 const Allocator = std.mem.Allocator;
 const FixPoint = @import("FixPoint.zig");
 
-const String = []const u8;
 const Self = @This();
 
 allocator: Allocator,
@@ -232,6 +231,16 @@ fn handle_D(self: *Self, line: []u8) !void {
     }
 }
 
+/// transform groff_out RGB color into pdf RGB color by scaling each dimension
+/// from a 0..65535 range to 0..1
+fn groffRgbToPdfRgbColor(gc: groff.RgbColor) !pdf.RgbColor {
+    return pdf.RgbColor{
+        .r = FixPoint.from(gc.r, groff.RgbColorMax), //
+        .g = FixPoint.from(gc.g, groff.RgbColorMax),
+        .b = FixPoint.from(gc.b, groff.RgbColorMax),
+    };
+}
+
 fn handle_m(self: *Self, line: []u8) !void {
     const sub_cmd = std.meta.stringToEnum(groff.MSubCommand, line[0..1]).?;
     switch (sub_cmd) {
@@ -239,15 +248,10 @@ fn handle_m(self: *Self, line: []u8) !void {
             try self.cur_text_object.?.setFillColorBlack();
         },
         .r => {
-            var it = std.mem.splitScalar(u8, line[2..], ' ');
-            const r_groff = it.next().?;
-            const r_pdf = try FixPoint.from_n_string(r_groff, 65535);
-            const g_groff = it.next().?;
-            const g_pdf = try FixPoint.from_n_string(g_groff, 65535);
-            const b_groff = it.next().?;
-            const b_pdf = try FixPoint.from_n_string(b_groff, 65535);
-            log.dbg("setting stroke color: {f} {f} {f}\n", .{ r_pdf, g_pdf, b_pdf });
-            try self.cur_text_object.?.setFillColor(r_pdf, b_pdf, g_pdf);
+            const groff_rgb = try groff.RgbColor.from_string(line[2..]);
+            const pdf_rgb = try groffRgbToPdfRgbColor(groff_rgb);
+            log.dbg("setting fill color: {f}\n", .{pdf_rgb});
+            try self.cur_text_object.?.setFillColor(pdf_rgb);
         },
     }
 }

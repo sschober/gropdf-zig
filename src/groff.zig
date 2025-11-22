@@ -1,12 +1,12 @@
 const std = @import("std");
 const log = @import("log.zig");
+const common = @import("common.zig");
 
-const String = []const u8;
+const String = common.String;
 /// a glyph map maps indices corresponding to ascii codes to glyph widths. each
 /// font has its separate map
 pub const GlyphMap = [257]usize;
 const Allocator = std.mem.Allocator;
-
 /// groff out language elements - all single characters, some take
 pub const Out = enum {
     /// device control command - see XSubCommand
@@ -84,6 +84,27 @@ pub const zPosition = struct {
             result.v = try std.fmt.parseUnsigned(usize, input[0..], 10);
         }
         return result;
+    }
+};
+
+pub const RgbColorMax = 65535;
+pub const RgbColor = struct {
+    r: usize = 0, //
+    g: usize = 0,
+    b: usize = 0,
+    pub fn from_string(s: String) !RgbColor {
+        var it = std.mem.splitScalar(u8, s, ' ');
+        return RgbColor.from_iterator(&it);
+    }
+    pub fn from_iterator(it: *common.U8SplitIterator) !RgbColor {
+        return RgbColor.from_strings(it.next().?, it.next().?, it.next().?);
+    }
+    pub fn from_strings(r: String, g: String, b: String) !RgbColor {
+        return RgbColor{
+            .r = try std.fmt.parseUnsigned(usize, r, 10),
+            .g = try std.fmt.parseUnsigned(usize, g, 10),
+            .b = try std.fmt.parseUnsigned(usize, b, 10),
+        };
     }
 };
 
