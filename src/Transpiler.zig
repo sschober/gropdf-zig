@@ -295,6 +295,13 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
             try self.cur_text_object.?.addWord(line[1..], glyph_widths_map, self.cur_font_size);
         },
+        .u => {
+            var it = std.mem.splitScalar(u8, line[1..], ' ');
+            _ = it.next();
+            const word = it.next().?;
+            const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
+            try self.cur_text_object.?.addWord(word, glyph_widths_map, self.cur_font_size);
+        },
         .w => {
             // interword space - has no function and is immediately followed by
             // another command; so we skip one character in line and recurse

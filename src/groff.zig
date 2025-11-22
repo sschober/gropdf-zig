@@ -31,6 +31,8 @@ pub const Out = enum {
     D,
     /// type-set word
     t,
+    /// type-set word with track kerning
+    u,
     /// inter-word whitespace
     w,
     /// type-set glyph/character
