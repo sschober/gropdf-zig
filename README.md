@@ -19,7 +19,7 @@ not the first language I would think of, when thinking about speed.
 
 Motivated by the approachability of `gropdf.pl` (
 [sources](https://cgit.git.savannah.gnu.org/cgit/groff.git/tree/src/devices/gropdf/gropdf.pl), 
-[man page](https://man7.org/linux/man-pages/man1/gropdf.1.html)
+[man page](https://man7.org/linux/man-pages/man1/gropdf.1.html))
 and the PDF spec, or to be exact, adobe's 
 [pdf reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/pdfreference1.7old.pdf),
 I started this little experiment to see
