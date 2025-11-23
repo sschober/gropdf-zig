@@ -171,6 +171,7 @@ fn handle_h(self: *Self, line: []u8) !void {
     try text_obj.addE(fixPointFromZPos(h));
 }
 
+/// relative vertical positioning
 fn handle_v(self: *Self, line: []u8) !void {
     const v = try groff.zPosition.fromString(line);
     const text_obj = self.cur_text_object orelse return TranspileError.StateError;
