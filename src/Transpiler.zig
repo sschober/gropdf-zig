@@ -124,6 +124,11 @@ fn handle_h(self: *Self, line: []u8) !void {
     try self.cur_text_object.?.addE(fixPointFromZPos(h));
 }
 
+fn handle_v(self: *Self, line: []u8) !void {
+    const v = try groff.zPosition.fromString(line);
+    try self.cur_text_object.?.addF(fixPointFromZPos(v));
+}
+
 /// our custom error type for communicating situations back up to the caller,
 /// which we cannot ignore or handle other wise
 const XCommandError = error{WrongDevice} || Allocator.Error;
@@ -206,23 +211,22 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
 fn handle_D(self: *Self, line: []u8) !void {
     var it = std.mem.splitScalar(u8, line, ' ');
     const sub_cmd = it.next().?;
-    log.dbg("sub cmd: {s}\n", .{sub_cmd});
     const sub_cmd_enum = std.meta.stringToEnum(groff.DSubCommand, sub_cmd).?;
     switch (sub_cmd_enum) {
         .l => {
             const zX = it.next().?;
-            log.dbg("zX: {s}", .{zX});
+            log.dbg("{d}: Dl: x:{s}", .{ self.cur_line_num, zX });
             const zPosX = try groff.zPosition.fromString(zX);
             const x = fixPointFromZPos(zPosX);
             const zY = it.next().?;
-            log.dbg("zY: {s}", .{zY});
+            log.dbg(" y: {s}\n", .{zY});
             const zPosY = try groff.zPosition.fromString(zY);
             const y = fixPointFromZPos(zPosY);
             try self.cur_page.?.contents.graphicalObject.lineTo(x, y);
         },
         .t => {
             const zT = it.next().?;
-            log.dbg("zT: {s}", .{zT});
+            log.dbg("{d}: Dt{s}\n", .{ self.cur_line_num, zT });
             const zTNum = try std.fmt.parseUnsigned(usize, zT, 10);
             const zTScaled = FixPoint.from(zTNum, pdf.UNITSCALE);
             try self.cur_page.?.contents.graphicalObject.lineWidth(zTScaled);
@@ -330,7 +334,9 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             try self.handle_h(line[1..]);
         },
         .v => {
-            // we ignore `v` as it seems the absolute positioning commands are enough
+            // vertical relative positioning
+            // sample: v619
+            try self.handle_v(line[1..]);
         },
         .H => {
             // horizontal absolute positioning

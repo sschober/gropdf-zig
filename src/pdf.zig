@@ -238,6 +238,14 @@ pub const TextObject = struct {
         try self.newLine();
         try self.flushPos();
     }
+    /// increment y position by v, flush current line and init a new one note
+    /// the PDF's y axis starts at the lower left corner of the page, so we
+    /// need to subtract v from the current position.
+    pub fn addF(self: *TextObject, v: FixPoint) !void {
+        self.f = self.f.sub(v);
+        try self.newLine();
+        try self.flushPos();
+    }
     /// set `f` position - aka y coordinate
     pub fn setF(self: *TextObject, f: FixPoint) !void {
         try self.newLine();
