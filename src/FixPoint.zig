@@ -55,6 +55,18 @@ pub fn subtractFrom(self: Self, n: usize) Self {
     return result;
 }
 
+pub fn sub(self: Self, o: Self) Self {
+    var result = Self{};
+    result.integer = self.integer - o.integer;
+    if (o.fraction > self.fraction) {
+        result.fraction = 1000 - o.fraction - self.fraction;
+        result.integer -= 1;
+    } else {
+        result.fraction = self.fraction - o.fraction;
+    }
+    return result;
+}
+
 /// add self to the given FixPoint parameter and return a new object
 pub fn addTo(self: Self, o: Self) Self {
     var result = self;
@@ -134,4 +146,13 @@ test "Multiplication" {
     const zero_dot_nineninenine = Self{ .integer = 0, .fraction = 999 };
     res = zero_dot_nineninenine.mult(zero_dot_nineninenine);
     std.debug.print("0.999 * 0.999 = {f}\n", .{res});
+}
+
+test "Substraction" {
+    const a = Self.from(1, 1);
+    const b = Self.from(1, 10);
+    std.debug.print("{f} - {f} = ", .{ a, b });
+    const res = a.sub(b);
+    std.debug.print("{f}\n", .{res});
+    try expect(res.integer == 0 and res.fraction == 900);
 }
