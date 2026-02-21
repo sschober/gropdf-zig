@@ -64,7 +64,18 @@ const groff_to_pdf_font_map =
         .{ "TR", pdf.StandardFonts.Times_Roman }, //
         .{ "TB", pdf.StandardFonts.Times_Bold }, //
         .{ "TI", pdf.StandardFonts.Times_Italic }, //
-        .{ "CR", pdf.StandardFonts.Courier },
+        .{ "TBI", pdf.StandardFonts.Times_Bold_Italic }, //
+        .{ "HR", pdf.StandardFonts.Helvetica }, //
+        .{ "H", pdf.StandardFonts.Helvetica }, //
+        .{ "HB", pdf.StandardFonts.Helvetica_Bold }, //
+        .{ "HI", pdf.StandardFonts.Helvetica_Oblique }, //
+        .{ "HBI", pdf.StandardFonts.Helvetica_Bold_Oblique }, //
+        .{ "CR", pdf.StandardFonts.Courier }, //
+        .{ "CB", pdf.StandardFonts.Courier_Bold }, //
+        .{ "CI", pdf.StandardFonts.Courier_Olbique }, //
+        .{ "CBI", pdf.StandardFonts.Courier_Bold_Oblique }, //
+        .{ "S", pdf.StandardFonts.Symbol }, //
+        .{ "ZD", pdf.StandardFonts.Zapf_Dingbats },
     });
 
 /// handles a `x font TR 6` command
