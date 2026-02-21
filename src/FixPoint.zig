@@ -84,6 +84,7 @@ pub fn mult(self: Self, o: Self) Self {
     var result = Self{};
     result.integer = self.integer * o.integer;
     result.fraction = self.integer * o.fraction;
+    result.fraction += o.integer * self.fraction;
     result.fraction += (self.fraction * o.fraction) / 1000;
     if (result.fraction >= 1000) {
         result.integer += result.fraction / 1000;
@@ -146,6 +147,11 @@ test "Multiplication" {
     const zero_dot_nineninenine = Self{ .integer = 0, .fraction = 999 };
     res = zero_dot_nineninenine.mult(zero_dot_nineninenine);
     std.debug.print("0.999 * 0.999 = {f}\n", .{res});
+
+    // cross-term: 1.5 * 2.0 = 3.0  (requires o.integer * self.fraction)
+    res = Self.from(3, 2).mult(Self.from(2, 1));
+    std.debug.print("1.5 * 2.0 = {f}\n", .{res});
+    try expect(res.integer == 3 and res.fraction == 0);
 }
 
 test "Substraction" {
