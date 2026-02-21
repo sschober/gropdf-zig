@@ -233,7 +233,7 @@ fn handle_D(self: *Self, line: []u8) !void {
         },
         .Fd => {
             // filled drawing with default color - collect coordinate pairs
-            var points = std.ArrayList(FixPoint).init(self.allocator);
+            var points = std.array_list.Managed(FixPoint).init(self.allocator);
             while (it.next()) |z| {
                 const zPos = try groff.zPosition.fromString(z);
                 try points.append(fixPointFromZPos(zPos));
@@ -245,7 +245,7 @@ fn handle_D(self: *Self, line: []u8) !void {
             const groff_rgb = try groff.RgbColor.from_iterator(&it);
             const pdf_rgb = try groffRgbToPdfRgbColor(groff_rgb);
             try self.cur_page.?.contents.graphicalObject.setFillColor(pdf_rgb);
-            var points = std.ArrayList(FixPoint).init(self.allocator);
+            var points = std.array_list.Managed(FixPoint).init(self.allocator);
             while (it.next()) |z| {
                 const zPos = try groff.zPosition.fromString(z);
                 try points.append(fixPointFromZPos(zPos));
