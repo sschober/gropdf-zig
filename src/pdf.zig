@@ -149,6 +149,35 @@ pub const GraphicalObject = struct {
         try self.newLine();
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} w", .{t}));
     }
+    /// draw a filled polygon/path - uses 'f' operator to fill
+    pub fn fillPath(self: *GraphicalObject, points: []const FixPoint) !void {
+        try self.newLine();
+        if (points.len >= 2) {
+            var path = ArrayList(u8).init(self.allocator);
+            // Move to first point (current position)
+            try path.writer().print("{f} {f} m", .{ self.cur_x, self.cur_y });
+            var cur_x = self.cur_x;
+            var cur_y = self.cur_y;
+            var i: usize = 0;
+            while (i + 1 < points.len) : (i += 2) {
+                cur_x = cur_x.addTo(points[i]);
+                cur_y = cur_y.addTo(points[i + 1]);
+                try path.writer().print(" {f} {f} l", .{ cur_x, cur_y });
+            }
+            try path.writer().print(" f", .{});
+            try self.lines.append(path.items);
+        }
+    }
+    /// set fill color for graphical objects (non-stroking color in RGB)
+    pub fn setFillColor(self: *GraphicalObject, c: RgbColor) !void {
+        try self.newLine();
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "{f} rg", .{c}));
+    }
+    /// set fill color to default (black)
+    pub fn setFillColorBlack(self: *GraphicalObject) !void {
+        try self.newLine();
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "0.0 g", .{}));
+    }
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,

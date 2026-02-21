@@ -231,7 +231,27 @@ fn handle_D(self: *Self, line: []u8) !void {
             const zTScaled = FixPoint.from(zTNum, pdf.UNITSCALE);
             try self.cur_page.?.contents.graphicalObject.lineWidth(zTScaled);
         },
-        else => {},
+        .Fd => {
+            // filled drawing with default color - collect coordinate pairs
+            var points = std.ArrayList(FixPoint).init(self.allocator);
+            while (it.next()) |z| {
+                const zPos = try groff.zPosition.fromString(z);
+                try points.append(fixPointFromZPos(zPos));
+            }
+            try self.cur_page.?.contents.graphicalObject.fillPath(points.items);
+        },
+        .Fr => {
+            // color filled drawing - first 3 args are R G B, then coordinate pairs
+            const groff_rgb = try groff.RgbColor.from_iterator(&it);
+            const pdf_rgb = try groffRgbToPdfRgbColor(groff_rgb);
+            try self.cur_page.?.contents.graphicalObject.setFillColor(pdf_rgb);
+            var points = std.ArrayList(FixPoint).init(self.allocator);
+            while (it.next()) |z| {
+                const zPos = try groff.zPosition.fromString(z);
+                try points.append(fixPointFromZPos(zPos));
+            }
+            try self.cur_page.?.contents.graphicalObject.fillPath(points.items);
+        },
     }
 }
 
