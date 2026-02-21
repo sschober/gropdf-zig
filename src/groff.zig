@@ -80,7 +80,7 @@ pub const zPosition = struct {
     v: usize = 0,
     pub fn fromString(input: String) !zPosition {
         var result = zPosition{};
-        if (input.len > 3 and input[input.len - 1] == 'z') {
+        if (input.len >= 2 and input[input.len - 1] == 'z') {
             result.v = try std.fmt.parseUnsigned(usize, input[0 .. input.len - 1], 10);
         } else {
             result.v = try std.fmt.parseUnsigned(usize, input[0..], 10);
