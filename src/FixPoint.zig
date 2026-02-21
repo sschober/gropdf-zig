@@ -59,7 +59,7 @@ pub fn sub(self: Self, o: Self) Self {
     var result = Self{};
     result.integer = self.integer - o.integer;
     if (o.fraction > self.fraction) {
-        result.fraction = 1000 - o.fraction - self.fraction;
+        result.fraction = 1000 + self.fraction - o.fraction;
         result.integer -= 1;
     } else {
         result.fraction = self.fraction - o.fraction;
@@ -155,4 +155,12 @@ test "Substraction" {
     const res = a.sub(b);
     std.debug.print("{f}\n", .{res});
     try expect(res.integer == 0 and res.fraction == 900);
+
+    // borrow with non-zero self.fraction: 1.500 - 0.700 = 0.800
+    const c = Self.from(3, 2);
+    const d = Self.from(7, 10);
+    std.debug.print("{f} - {f} = ", .{ c, d });
+    const res2 = c.sub(d);
+    std.debug.print("{f}\n", .{res2});
+    try expect(res2.integer == 0 and res2.fraction == 800);
 }
