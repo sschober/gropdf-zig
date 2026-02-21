@@ -579,7 +579,7 @@ pub const Document = struct {
 
         // header
         try writer.print("{s}", .{PDF_1_1_HEADER});
-        byteCount += PDF_1_1_HEADER.len + 1;
+        byteCount += PDF_1_1_HEADER.len;
 
         // objects
         for (self.objs.items) |obj| {
