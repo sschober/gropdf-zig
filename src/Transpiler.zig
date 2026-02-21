@@ -199,13 +199,36 @@ fn handle_x(self: *Self, line: []u8) !void {
 }
 
 /// maps groff out character names to ascii/pdf standard encoding codes
-const glyph_map = std.StaticStringMap(u8).initComptime(.{ //
-    .{ "fi", 174 }, //
+const glyph_map = std.StaticStringMap(u8).initComptime(.{
+    // ligatures
+    .{ "fi", 174 },
     .{ "fl", 175 },
-    .{ "hy", 45 },
-    .{ "lq", 141 },
-    .{ "rq", 142 },
-    .{ "cq", 0o251 },
+    // hyphens and dashes
+    .{ "hy", 45 },    // hyphen
+    .{ "mi", 45 },    // minus sign
+    .{ "em", 151 },   // em-dash
+    .{ "en", 150 },   // en-dash
+    // quotes
+    .{ "lq", 141 },   // left double quote
+    .{ "rq", 142 },   // right double quote
+    .{ "cq", 0o251 }, // close quote (right single)
+    .{ "oq", 0o140 }, // open quote (left single)
+    .{ "dq", 34 },    // double quote
+    .{ "aq", 39 },    // apostrophe
+    // punctuation and symbols
+    .{ "bu", 0o267 }, // bullet
+    .{ "de", 0o260 }, // degree
+    .{ "sc", 0o247 }, // section sign
+    .{ "dg", 0o262 }, // dagger
+    .{ "dd", 0o263 }, // double dagger
+    .{ "ct", 0o242 }, // cent sign
+    .{ "rs", 92 },    // backslash (reverse solidus)
+    .{ "sl", 47 },    // slash
+    // math operators
+    .{ "pl", 43 },    // plus
+    .{ "eq", 61 },    // equals
+    .{ "mu", 0o264 }, // multiply
+    .{ "**", 42 },    // asterisk
 });
 
 fn handle_D(self: *Self, line: []u8) !void {
