@@ -549,14 +549,17 @@ pub const Document = struct {
     /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, doc_font_ref: Document.FontRef) !Page.FontRef {
         const font = self.fonts.items[doc_font_ref.idx];
-        if (doc_font_ref.idx >= page.resources.items.len) {
-            log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
-            try page.resources.append(font.objNum);
-            return Page.FontRef{ .idx = page.resources.items.len - 1 };
-        } else {
-            log.dbg("pdf: assuming already seen {f}. not adding to page {d}...\n", .{ doc_font_ref, page.objNum });
-            return Page.FontRef{ .idx = doc_font_ref.idx };
+        // Search for the font already registered on this page by object number.
+        for (page.resources.items, 0..) |objNum, i| {
+            if (objNum == font.objNum) {
+                log.dbg("pdf: assuming already seen {f}. not adding to page {d}...\n", .{ doc_font_ref, page.objNum });
+                return Page.FontRef{ .idx = i };
+            }
         }
+        // Not found on this page — register it.
+        log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
+        try page.resources.append(font.objNum);
+        return Page.FontRef{ .idx = page.resources.items.len - 1 };
     }
 
     /// add a new and empty page to the document and return a pointer to it
