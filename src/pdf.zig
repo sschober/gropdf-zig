@@ -579,7 +579,7 @@ pub const Document = struct {
 
         // header
         try writer.print("{s}", .{PDF_1_1_HEADER});
-        byteCount += PDF_1_1_HEADER.len + 1;
+        byteCount += PDF_1_1_HEADER.len;
 
         // objects
         for (self.objs.items) |obj| {
@@ -619,3 +619,54 @@ pub const Document = struct {
         , .{ self.catalog.objNum, self.objs.items.len + 1, startXRef });
     }
 };
+
+const expect = std.testing.expect;
+
+test "xref offsets match actual object positions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var doc = try Document.init(allocator);
+
+    // format the document into a buffer
+    var buf: [4096]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try doc.format(&writer);
+    try writer.flush();
+    const output = buf[0..writer.end];
+
+    // find the xref table
+    const xref_pos = std.mem.indexOf(u8, output, "xref\n") orelse return error.XrefNotFound;
+
+    // parse object count from "0 <count>\n"
+    const count_line_start = xref_pos + "xref\n".len;
+    const count_line_end = std.mem.indexOfPos(u8, output, count_line_start, "\n") orelse return error.ParseError;
+    const count_line = output[count_line_start..count_line_end];
+
+    // parse "0 <n>" to get n
+    var it = std.mem.splitScalar(u8, count_line, ' ');
+    _ = it.next(); // skip "0"
+    const n = try std.fmt.parseInt(usize, it.next() orelse return error.ParseError, 10);
+
+    // skip the free entry, then check each "in use" entry
+    var pos = count_line_end + 1; // after count line
+    pos = (std.mem.indexOfPos(u8, output, pos, "\n") orelse return error.ParseError) + 1; // skip free entry
+
+    // verify each xref offset points to "<objnum> 0 obj\n"
+    for (1..n) |obj_idx| {
+        const line_end = std.mem.indexOfPos(u8, output, pos, "\n") orelse return error.ParseError;
+        const offset = try std.fmt.parseInt(usize, output[pos .. pos + 10], 10);
+
+        const expected_prefix = try std.fmt.allocPrint(
+            allocator,
+            "{d} 0 obj\n",
+            .{obj_idx},
+        );
+
+        const actual = output[offset..@min(offset + expected_prefix.len, output.len)];
+        try expect(std.mem.eql(u8, actual, expected_prefix));
+
+        pos = line_end + 1; // next entry
+    }
+}
