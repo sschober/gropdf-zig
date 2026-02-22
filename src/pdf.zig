@@ -47,9 +47,17 @@ pub const StandardFonts = enum {
             .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1",
             .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1",
             .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1",
+            .Times_Bold_Italic => return "/BaseFont /Times-BoldItalic\n/Subtype /Type1",
             .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1",
+            .Helvetica_Bold => return "/BaseFont /Helvetica-Bold\n/Subtype /Type1",
+            .Helvetica_Oblique => return "/BaseFont /Helvetica-Oblique\n/Subtype /Type1",
+            .Helvetica_Bold_Oblique => return "/BaseFont /Helvetica-BoldOblique\n/Subtype /Type1",
             .Courier => return "/BaseFont /Courier\n/Subtype /Type1",
-            else => return "",
+            .Courier_Bold => return "/BaseFont /Courier-Bold\n/Subtype /Type1",
+            .Courier_Olbique => return "/BaseFont /Courier-Oblique\n/Subtype /Type1",
+            .Courier_Bold_Oblique => return "/BaseFont /Courier-BoldOblique\n/Subtype /Type1",
+            .Symbol => return "/BaseFont /Symbol\n/Subtype /Type1",
+            .Zapf_Dingbats => return "/BaseFont /ZapfDingbats\n/Subtype /Type1",
         }
     }
 };
