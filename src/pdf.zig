@@ -227,6 +227,9 @@ pub const TextObject = struct {
     e: FixPoint = FixPoint{},
     /// y coordinate, actually, but as pdf does matrix multiplication, we call it `f`
     f: FixPoint = FixPoint{},
+    /// last flushed position - used to avoid redundant Tm commands
+    last_flushed_e: FixPoint = FixPoint{},
+    last_flushed_f: FixPoint = FixPoint{},
     /// inter-word whitespace
     w: FixPoint = FixPoint{},
     /// initialze a new text object and its members
@@ -245,14 +248,21 @@ pub const TextObject = struct {
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "/F{d} {d}. Tf", .{ page_font_ref.idx, fSize }));
     }
     /// issue Tm command with saved and latest positions (e and f)
+    /// compares against last flushed position to avoid redundant Tm commands,
+    /// which happen quite often with grout input
     pub fn flushPos(self: *TextObject) !void {
-        const newTm = try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
-            .{ self.e, self.f });
-        // only append new Tm command if the last line is not identical
-        // this case happens quite often with the grout input
-        if (self.lines.items.len == 0 or !std.mem.eql(u8, self.lines.items[self.lines.items.len - 1], newTm)) {
-            try self.lines.append(newTm);
+        if (self.lines.items.len > 0 and
+            self.e.integer == self.last_flushed_e.integer and
+            self.e.fraction == self.last_flushed_e.fraction and
+            self.f.integer == self.last_flushed_f.integer and
+            self.f.fraction == self.last_flushed_f.fraction)
+        {
+            return;
         }
+        self.last_flushed_e = self.e;
+        self.last_flushed_f = self.f;
+        try self.lines.append(try std.fmt.allocPrint(self.allocator, "1 0 0 1 {f} {f} Tm", //
+            .{ self.e, self.f }));
     }
     pub fn setFillColorBlack(self: *TextObject) !void {
         try self.newLine();
@@ -356,8 +366,8 @@ pub const Stream = struct {
         self: @This(),
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
-        const stream = std.fmt.allocPrint(self.allocator, //
-            "{f}\n{f}", .{ self.graphicalObject, self.textObject }) catch "";
+        var buf = ArrayList(u8).init(self.allocator);
+        buf.writer().print("{f}\n{f}", .{ self.graphicalObject, self.textObject }) catch {};
         try writer.print(
             \\<<
             \\/Length {d}
@@ -366,7 +376,7 @@ pub const Stream = struct {
             \\{s}
             \\endstream
             \\
-        , .{ stream.len, stream });
+        , .{ buf.items.len, buf.items });
     }
     pub fn pdfObj(self: *Stream) !*Object {
         const res = try self.allocator.create(Object);
@@ -621,12 +631,11 @@ pub const Document = struct {
         // objects
         for (self.objs.items) |obj| {
             objIndices.append(byteCount) catch {};
-            const objBytes = std.fmt.allocPrint(self.allocator, "{f}", .{obj}) catch "";
             const objStr = std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
-                \\{s}endobj
+                \\{f}endobj
                 \\
-            , .{ obj.objNum(), objBytes }) catch "";
+            , .{ obj.objNum(), obj }) catch "";
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }
