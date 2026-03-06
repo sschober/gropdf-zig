@@ -355,9 +355,10 @@ pub const Stream = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
-        const stream = std.fmt.allocPrint(self.allocator, //
-            "{f}\n{f}", .{ self.graphicalObject, self.textObject }) catch "";
+    ) (std.Io.Writer.Error || Allocator.Error)!void {
+        // pre-render content to measure its byte length for the /Length field
+        const stream = try std.fmt.allocPrint(self.allocator,
+            "{f}\n{f}", .{ self.graphicalObject, self.textObject });
         try writer.print(
             \\<<
             \\/Length {d}
@@ -447,7 +448,7 @@ pub const Page = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || Allocator.Error)!void {
         try writer.print(
             \\<<
             \\/Type /Page
@@ -460,7 +461,7 @@ pub const Page = struct {
             \\>>
             \\>>
             \\
-        , .{ self.parentNum, self.contents.objNum, self.x, self.y, self.resString() catch "" });
+        , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try self.allocator.create(Object);
@@ -514,7 +515,7 @@ pub const Object = union(enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || Allocator.Error)!void {
         switch (self) {
             inline else => |impl| return impl.format(writer),
         }
@@ -606,11 +607,11 @@ pub const Document = struct {
         return page;
     }
 
-    /// renders the pdf coument to the given writer
+    /// renders the pdf document to the given writer
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || Allocator.Error)!void {
         var byteCount: usize = 0;
         var objIndices = ArrayList(usize).init(self.allocator);
 
@@ -620,13 +621,13 @@ pub const Document = struct {
 
         // objects
         for (self.objs.items) |obj| {
-            objIndices.append(byteCount) catch {};
-            const objBytes = std.fmt.allocPrint(self.allocator, "{f}", .{obj}) catch "";
-            const objStr = std.fmt.allocPrint(self.allocator,
+            try objIndices.append(byteCount);
+            const objBytes = try std.fmt.allocPrint(self.allocator, "{f}", .{obj});
+            const objStr = try std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
                 \\{s}endobj
                 \\
-            , .{ obj.objNum(), objBytes }) catch "";
+            , .{ obj.objNum(), objBytes });
             try writer.print("{s}", .{objStr});
             byteCount += objStr.len;
         }

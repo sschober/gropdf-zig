@@ -43,8 +43,12 @@ pub fn from(n: usize, d: usize) Self {
     return result;
 }
 
-/// subtract self from the given FixPoint parameter ans return a new object
+/// subtract self from the given FixPoint parameter and return a new object.
+/// returns zero if self > n (underflow guard).
 pub fn subtractFrom(self: Self, n: usize) Self {
+    // Guard against underflow: if self > n, clamp to zero
+    if (self.integer > n) return Self{};
+    if (self.integer == n and self.fraction > 0) return Self{};
     var result = Self{};
     result.integer = n - self.integer;
     result.fraction = 0;
@@ -55,10 +59,15 @@ pub fn subtractFrom(self: Self, n: usize) Self {
     return result;
 }
 
+/// subtract o from self, returning a new object.
+/// returns zero if o > self (underflow guard).
 pub fn sub(self: Self, o: Self) Self {
+    // Guard against underflow: if o > self, clamp to zero
+    if (o.integer > self.integer) return Self{};
     var result = Self{};
     result.integer = self.integer - o.integer;
     if (o.fraction > self.fraction) {
+        if (result.integer == 0) return Self{};
         result.fraction = 1000 + self.fraction - o.fraction;
         result.integer -= 1;
     } else {
