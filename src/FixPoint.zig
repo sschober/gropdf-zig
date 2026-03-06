@@ -179,3 +179,51 @@ test "Substraction" {
     std.debug.print("{f}\n", .{res2});
     try expect(res2.integer == 0 and res2.fraction == 800);
 }
+
+test "Subtraction underflow clamped to zero" {
+    // sub: o.integer > self.integer
+    const small = Self.from(1, 1);
+    const big = Self.from(2, 1);
+    const res1 = small.sub(big);
+    std.debug.print("underflow {f} - {f} = {f}\n", .{ small, big, res1 });
+    try expect(res1.integer == 0 and res1.fraction == 0);
+
+    // sub: equal integers but o has larger fraction (borrow would underflow)
+    const one = Self.from(1, 1);
+    const one_half = Self{ .integer = 1, .fraction = 500 };
+    const res2 = one.sub(one_half);
+    std.debug.print("underflow {f} - {f} = {f}\n", .{ one, one_half, res2 });
+    try expect(res2.integer == 0 and res2.fraction == 0);
+
+    // subtractFrom: self > n clamps to zero
+    const fp = Self.from(5, 1); // 5.0
+    const res3 = fp.subtractFrom(3); // 3 - 5.0 would underflow
+    std.debug.print("underflow subtractFrom: 3 - {f} = {f}\n", .{ fp, res3 });
+    try expect(res3.integer == 0 and res3.fraction == 0);
+
+    // subtractFrom: self.integer == n but fraction > 0 clamps to zero
+    const fp2 = Self{ .integer = 3, .fraction = 500 }; // 3.500
+    const res4 = fp2.subtractFrom(3); // 3 - 3.5 would underflow
+    std.debug.print("underflow subtractFrom: 3 - {f} = {f}\n", .{ fp2, res4 });
+    try expect(res4.integer == 0 and res4.fraction == 0);
+}
+
+test "subtractFrom normal cases" {
+    // 10 - 3.0 = 7.0
+    const fp = Self.from(3, 1);
+    const res1 = fp.subtractFrom(10);
+    std.debug.print("10 - {f} = {f}\n", .{ fp, res1 });
+    try expect(res1.integer == 7 and res1.fraction == 0);
+
+    // 10 - 3.500 = 6.500
+    const fp2 = Self{ .integer = 3, .fraction = 500 };
+    const res2 = fp2.subtractFrom(10);
+    std.debug.print("10 - {f} = {f}\n", .{ fp2, res2 });
+    try expect(res2.integer == 6 and res2.fraction == 500);
+
+    // 5 - 4.999 = 0.001
+    const fp3 = Self{ .integer = 4, .fraction = 999 };
+    const res3 = fp3.subtractFrom(5);
+    std.debug.print("5 - {f} = {f}\n", .{ fp3, res3 });
+    try expect(res3.integer == 0 and res3.fraction == 1);
+}
