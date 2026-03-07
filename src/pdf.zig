@@ -355,7 +355,7 @@ pub const Stream = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || Allocator.Error)!void {
+    ) std.Io.Writer.Error!void {
         // pre-render content to measure its byte length for the /Length field
         const stream = try std.fmt.allocPrint(self.allocator,
             "{f}\n{f}", .{ self.graphicalObject, self.textObject });
@@ -448,7 +448,7 @@ pub const Page = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || Allocator.Error)!void {
+    ) std.Io.Writer.Error!void {
         try writer.print(
             \\<<
             \\/Type /Page
@@ -515,7 +515,7 @@ pub const Object = union(enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || Allocator.Error)!void {
+    ) std.Io.Writer.Error!void {
         switch (self) {
             inline else => |impl| return impl.format(writer),
         }
@@ -611,7 +611,7 @@ pub const Document = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || Allocator.Error)!void {
+    ) std.Io.Writer.Error!void {
         var byteCount: usize = 0;
         var objIndices = ArrayList(usize).init(self.allocator);
 
