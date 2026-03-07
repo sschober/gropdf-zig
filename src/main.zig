@@ -26,6 +26,20 @@ pub fn main() !u8 {
                 log.is_debug = true;
             } else if (std.mem.eql(u8, arg, "-w")) {
                 log.is_warn = true;
+            } else if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+                std.debug.print(
+                    \\gropdf-zig: groff PDF output device
+                    \\
+                    \\Usage:
+                    \\  groff -Z ... | gropdf-zig [options] > out.pdf
+                    \\
+                    \\Options:
+                    \\  -d          Enable debug output (written to stderr)
+                    \\  -w          Enable warning output (written to stderr)
+                    \\  -h, --help  Show this help message and exit
+                    \\
+                , .{});
+                return 0;
             } else {
                 std.debug.print("warning: unknown argument: {s}\n", .{arg});
             }

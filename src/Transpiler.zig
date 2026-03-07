@@ -80,29 +80,36 @@ const groff_to_pdf_font_map =
 
 /// handles a `x font TR 6` command
 fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
-    const font_num = try std.fmt.parseUnsigned(usize, it.next().?, 10);
-    const font_name = it.next().?;
+    const font_num_str = it.next() orelse return TranspileError.MissingArgument;
+    const font_num = try std.fmt.parseUnsigned(usize, font_num_str, 10);
+    const font_name = it.next() orelse return TranspileError.MissingArgument;
     const grout_font_ref = groff.FontRef{ .name = font_name, .idx = font_num };
     var doc_font_ref: pdf.Document.FontRef = pdf.Document.FontRef{ .idx = 0 };
     // did we already register the font at the document level, or do we need to do it?
     if (self.doc_font_map.contains(grout_font_ref.idx)) {
         log.dbg("{d}: not adding {f} to pdf doc: already seen...\n", .{ self.cur_line_num, grout_font_ref });
-        doc_font_ref = self.doc_font_map.get(grout_font_ref.idx).?;
+        // safe: we just verified the key exists via contains()
+        doc_font_ref = self.doc_font_map.get(grout_font_ref.idx) orelse unreachable;
     } else {
         // this is a new font, we did not see up until now...
-        if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
-            doc_font_ref = try self.doc.?.addStandardFont(pdf_std_font);
-        } else {
-            log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
-            return;
-        }
+        if (self.doc) |*doc| {
+            if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
+                doc_font_ref = try doc.addStandardFont(pdf_std_font);
+            } else {
+                log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
+                return;
+            }
+        } else return TranspileError.StateError;
         // the glyph map helps us move the x position in PDF text objects forward
         const glyph_widths_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
         try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_widths_map);
     }
-    const page_font_ref = try self.doc.?.addFontRefTo(self.cur_page.?, doc_font_ref);
-    log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
-    try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
+    if (self.doc) |*doc| {
+        const cur_page = self.cur_page orelse return TranspileError.StateError;
+        const page_font_ref = try doc.addFontRefTo(cur_page, doc_font_ref);
+        log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
+        try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
+    } else return TranspileError.StateError;
 }
 
 /// handle grout `fN` command - parses N as usize argument, selects font from page
@@ -112,44 +119,69 @@ fn handle_f(self: *Self, line: []u8) !void {
     const font_num = try std.fmt.parseUnsigned(usize, line, 10);
     self.cur_groff_font_num = font_num;
     self.cur_pdf_page_font_ref = self.page_font_map.get(font_num);
-    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, self.cur_pdf_page_font_ref.?, self.cur_font_size });
-    try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, self.cur_font_size);
+    const page_font_ref = self.cur_pdf_page_font_ref orelse {
+        log.warn("{d}: warning: font {d} not registered, skipping font select\n", .{ self.cur_line_num, font_num });
+        return;
+    };
+    log.dbg("{d}: selecting font {d}, {f} at size {d}\n", .{ self.cur_line_num, font_num, page_font_ref, self.cur_font_size });
+    const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+    try text_obj.selectFont(page_font_ref, self.cur_font_size);
 }
 
 /// begin a new page in pdf document, copy over the page dimensions from previous page
 /// sample: `p2`
 fn handle_p(self: *Self) !void {
-    self.cur_page = try self.doc.?.addPage();
+    if (self.doc) |*doc| {
+        self.cur_page = try doc.addPage();
+    } else return TranspileError.StateError;
+    const cur_page = self.cur_page orelse unreachable;
     if (self.cur_x > 0) {
-        self.cur_page.?.x = self.cur_x;
+        cur_page.x = self.cur_x;
     }
     if (self.cur_y > 0) {
-        self.cur_page.?.y = self.cur_y;
+        cur_page.y = self.cur_y;
     }
-    self.cur_text_object = self.cur_page.?.contents.textObject;
+    self.cur_text_object = cur_page.contents.textObject;
 }
 
 /// relative horizontal positioning
 fn handle_h(self: *Self, line: []u8) !void {
     const h = try groff.zPosition.fromString(line);
-    try self.cur_text_object.?.addE(fixPointFromZPos(h));
+    const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+    try text_obj.addE(fixPointFromZPos(h));
 }
 
 fn handle_v(self: *Self, line: []u8) !void {
     const v = try groff.zPosition.fromString(line);
-    try self.cur_text_object.?.addF(fixPointFromZPos(v));
+    const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+    try text_obj.addF(fixPointFromZPos(v));
 }
+
+/// error type for communicating invalid input or unexpected state back to the caller
+const TranspileError = error{
+    /// a required command argument was absent
+    MissingArgument,
+    /// the command or sub-command token was not recognised
+    UnknownCommand,
+    /// an operation was attempted before the required state was initialised
+    /// (e.g. typesetting before a page or font has been selected)
+    StateError,
+} || Allocator.Error;
 
 /// our custom error type for communicating situations back up to the caller,
 /// which we cannot ignore or handle other wise
-const XCommandError = error{WrongDevice} || Allocator.Error;
+const XCommandError = error{WrongDevice} || TranspileError;
 
 /// device control command
 /// sample: `x X papersize`
 fn handle_x(self: *Self, line: []u8) !void {
     if (line.len > 2) {
         var it = std.mem.splitScalar(u8, line[2..], ' ');
-        const sub_cmd_enum = std.meta.stringToEnum(groff.XSubCommand, it.next().?).?;
+        const sub_cmd_str = it.next() orelse return;
+        const sub_cmd_enum = std.meta.stringToEnum(groff.XSubCommand, sub_cmd_str) orelse {
+            log.warn("{d}: warning: unknown x sub-command: {s}\n", .{ self.cur_line_num, sub_cmd_str });
+            return;
+        };
         switch (sub_cmd_enum) {
             .init => {
                 // begin document
@@ -158,8 +190,8 @@ fn handle_x(self: *Self, line: []u8) !void {
             .font => try self.handle_x_font(&it),
             .res => {
                 // resolution control command
-                // sample:
-                const arg = it.next().?;
+                // sample: x res 72000 1 1
+                const arg = it.next() orelse return TranspileError.MissingArgument;
                 const res = try std.fmt.parseUnsigned(usize, arg, 10);
                 const unitsize = res / 72;
                 pdf.UNITSCALE = unitsize;
@@ -167,7 +199,7 @@ fn handle_x(self: *Self, line: []u8) !void {
             .T => {
                 // typesetter control command
                 // sample: x T pdf
-                const arg = it.next().?;
+                const arg = it.next() orelse return TranspileError.MissingArgument;
                 if (std.mem.indexOf(u8, arg, "pdf") != 0) {
                     log.dbg("error: unexpected output type: {s}", .{arg});
                     return XCommandError.WrongDevice;
@@ -176,24 +208,25 @@ fn handle_x(self: *Self, line: []u8) !void {
             .X => {
                 // X escape control command
                 // sample: x X papersize=421000z,595000z
-                const arg = it.next().?;
+                const arg = it.next() orelse return;
                 if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
                     if (0 == idxPapersize) {
                         // we found a `papersize` argument
                         if (std.mem.indexOf(u8, arg, "=")) |idxEqual| {
+                            const cur_page = self.cur_page orelse return TranspileError.StateError;
                             var itZSizes = std.mem.splitScalar(u8, arg[idxEqual + 1 ..], ',');
-                            const zX = itZSizes.next().?;
+                            const zX = itZSizes.next() orelse return TranspileError.MissingArgument;
                             const zPosX = try groff.zPosition.fromString(zX);
                             const zPosXScaled = fixPointFromZPos(zPosX);
-                            if (zPosXScaled.integer != self.cur_page.?.x) {
-                                self.cur_page.?.x = zPosXScaled.integer;
+                            if (zPosXScaled.integer != cur_page.x) {
+                                cur_page.x = zPosXScaled.integer;
                                 self.cur_x = zPosXScaled.integer;
                             }
-                            const zY = itZSizes.next().?;
+                            const zY = itZSizes.next() orelse return TranspileError.MissingArgument;
                             const zPosY = try groff.zPosition.fromString(zY);
                             const zPosYScaled = fixPointFromZPos(zPosY);
-                            if (zPosYScaled.integer != self.cur_page.?.y) {
-                                self.cur_page.?.y = zPosYScaled.integer;
+                            if (zPosYScaled.integer != cur_page.y) {
+                                cur_page.y = zPosYScaled.integer;
                                 self.cur_y = zPosYScaled.integer;
                             }
                         }
@@ -244,26 +277,30 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{
 
 fn handle_D(self: *Self, line: []u8) !void {
     var it = std.mem.splitScalar(u8, line, ' ');
-    const sub_cmd = it.next().?;
-    const sub_cmd_enum = std.meta.stringToEnum(groff.DSubCommand, sub_cmd).?;
+    const sub_cmd = it.next() orelse return TranspileError.MissingArgument;
+    const sub_cmd_enum = std.meta.stringToEnum(groff.DSubCommand, sub_cmd) orelse {
+        log.warn("{d}: warning: unknown D sub-command: {s}\n", .{ self.cur_line_num, sub_cmd });
+        return;
+    };
+    const cur_page = self.cur_page orelse return TranspileError.StateError;
     switch (sub_cmd_enum) {
         .l => {
-            const zX = it.next().?;
+            const zX = it.next() orelse return TranspileError.MissingArgument;
             log.dbg("{d}: Dl: x:{s}", .{ self.cur_line_num, zX });
             const zPosX = try groff.zPosition.fromString(zX);
             const x = fixPointFromZPos(zPosX);
-            const zY = it.next().?;
+            const zY = it.next() orelse return TranspileError.MissingArgument;
             log.dbg(" y: {s}\n", .{zY});
             const zPosY = try groff.zPosition.fromString(zY);
             const y = fixPointFromZPos(zPosY);
-            try self.cur_page.?.contents.graphicalObject.lineTo(x, y);
+            try cur_page.contents.graphicalObject.lineTo(x, y);
         },
         .t => {
-            const zT = it.next().?;
+            const zT = it.next() orelse return TranspileError.MissingArgument;
             log.dbg("{d}: Dt{s}\n", .{ self.cur_line_num, zT });
             const zTNum = try std.fmt.parseUnsigned(usize, zT, 10);
             const zTScaled = FixPoint.from(zTNum, pdf.UNITSCALE);
-            try self.cur_page.?.contents.graphicalObject.lineWidth(zTScaled);
+            try cur_page.contents.graphicalObject.lineWidth(zTScaled);
         },
         .Fd => {
             // filled drawing with default color - collect coordinate pairs
@@ -272,19 +309,19 @@ fn handle_D(self: *Self, line: []u8) !void {
                 const zPos = try groff.zPosition.fromString(z);
                 try points.append(fixPointFromZPos(zPos));
             }
-            try self.cur_page.?.contents.graphicalObject.fillPath(points.items);
+            try cur_page.contents.graphicalObject.fillPath(points.items);
         },
         .Fr => {
             // color filled drawing - first 3 args are R G B, then coordinate pairs
             const groff_rgb = try groff.RgbColor.from_iterator(&it);
             const pdf_rgb = try groffRgbToPdfRgbColor(groff_rgb);
-            try self.cur_page.?.contents.graphicalObject.setFillColor(pdf_rgb);
+            try cur_page.contents.graphicalObject.setFillColor(pdf_rgb);
             var points = std.array_list.Managed(FixPoint).init(self.allocator);
             while (it.next()) |z| {
                 const zPos = try groff.zPosition.fromString(z);
                 try points.append(fixPointFromZPos(zPos));
             }
-            try self.cur_page.?.contents.graphicalObject.fillPath(points.items);
+            try cur_page.contents.graphicalObject.fillPath(points.items);
         },
     }
 }
@@ -300,16 +337,22 @@ fn groffRgbToPdfRgbColor(gc: groff.RgbColor) !pdf.RgbColor {
 }
 
 fn handle_m(self: *Self, line: []u8) !void {
-    const sub_cmd = std.meta.stringToEnum(groff.MSubCommand, line[0..1]).?;
+    if (line.len < 1) return TranspileError.MissingArgument;
+    const sub_cmd = std.meta.stringToEnum(groff.MSubCommand, line[0..1]) orelse {
+        log.warn("{d}: warning: unknown m sub-command: {s}\n", .{ self.cur_line_num, line[0..1] });
+        return;
+    };
+    const text_obj = self.cur_text_object orelse return TranspileError.StateError;
     switch (sub_cmd) {
         .d => {
-            try self.cur_text_object.?.setFillColorBlack();
+            try text_obj.setFillColorBlack();
         },
         .r => {
+            if (line.len < 3) return TranspileError.MissingArgument;
             const groff_rgb = try groff.RgbColor.from_string(line[2..]);
             const pdf_rgb = try groffRgbToPdfRgbColor(groff_rgb);
             log.dbg("setting fill color: {f}\n", .{pdf_rgb});
-            try self.cur_text_object.?.setFillColor(pdf_rgb);
+            try text_obj.setFillColor(pdf_rgb);
         },
     }
 }
@@ -318,7 +361,11 @@ fn handle_m(self: *Self, line: []u8) !void {
 /// tries to convert the first character of line to a groff.Out enum and
 /// dispatches to the handler functions
 fn handle_cmd(self: *Self, line: []u8) !void {
-    const cmd = std.meta.stringToEnum(groff.Out, line[0..1]).?;
+    if (line.len == 0) return;
+    const cmd = std.meta.stringToEnum(groff.Out, line[0..1]) orelse {
+        log.warn("{d}: warning: unknown command: {s}\n", .{ self.cur_line_num, line[0..1] });
+        return;
+    };
     switch (cmd) {
         .p => try self.handle_p(),
         .f => try self.handle_f(line[1..]),
@@ -326,11 +373,16 @@ fn handle_cmd(self: *Self, line: []u8) !void {
         .C => {
             // typeset glyph of special character id
             // sample: Chy
+            if (line.len < 3) {
+                log.warn("{d}: warning: C command too short: {s}\n", .{ self.cur_line_num, line });
+                return;
+            }
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
             if (glyph_map.get(line[1..3])) |code| {
-                try self.cur_text_object.?.addWordWithoutMove(&.{code});
+                try text_obj.addWordWithoutMove(&.{code});
             } else {
                 log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
-                try self.cur_text_object.?.addWordWithoutMove(line[1..]);
+                try text_obj.addWordWithoutMove(line[1..]);
             }
         },
         .D => {
@@ -345,20 +397,41 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             // sample: s11000
             const fontSize = try std.fmt.parseInt(usize, line[1..], 10);
             self.cur_font_size = fontSize / pdf.UNITSCALE;
-            try self.cur_text_object.?.selectFont(self.cur_pdf_page_font_ref.?, fontSize / pdf.UNITSCALE);
+            const page_font_ref = self.cur_pdf_page_font_ref orelse {
+                log.warn("{d}: warning: no font selected for size change, skipping\n", .{self.cur_line_num});
+                return;
+            };
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            try text_obj.selectFont(page_font_ref, fontSize / pdf.UNITSCALE);
         },
         .t => {
             // typeset word
             // sample: thello
-            const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
-            try self.cur_text_object.?.addWord(line[1..], glyph_widths_map, self.cur_font_size);
+            const font_num = self.cur_groff_font_num orelse {
+                log.warn("{d}: warning: no font active for 't' command, skipping\n", .{self.cur_line_num});
+                return;
+            };
+            const glyph_widths_map = self.font_glyph_widths_maps.get(font_num) orelse {
+                log.warn("{d}: warning: no glyph map for font {d}, skipping\n", .{ self.cur_line_num, font_num });
+                return;
+            };
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            try text_obj.addWord(line[1..], glyph_widths_map, self.cur_font_size);
         },
         .u => {
             var it = std.mem.splitScalar(u8, line[1..], ' ');
             _ = it.next();
-            const word = it.next().?;
-            const glyph_widths_map = self.font_glyph_widths_maps.get(self.cur_groff_font_num.?).?;
-            try self.cur_text_object.?.addWord(word, glyph_widths_map, self.cur_font_size);
+            const word = it.next() orelse return TranspileError.MissingArgument;
+            const font_num = self.cur_groff_font_num orelse {
+                log.warn("{d}: warning: no font active for 'u' command, skipping\n", .{self.cur_line_num});
+                return;
+            };
+            const glyph_widths_map = self.font_glyph_widths_maps.get(font_num) orelse {
+                log.warn("{d}: warning: no glyph map for font {d}, skipping\n", .{ self.cur_line_num, font_num });
+                return;
+            };
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            try text_obj.addWord(word, glyph_widths_map, self.cur_font_size);
         },
         .w => {
             // interword space - has no function and is immediately followed by
@@ -369,17 +442,20 @@ fn handle_cmd(self: *Self, line: []u8) !void {
         .n => {
             // new line command
             // sample: n12000 0
-            try self.cur_text_object.?.newLine();
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            try text_obj.newLine();
         },
         .V => {
             // vertical absolute positioning
             // sample: V151452
+            const cur_page = self.cur_page orelse return TranspileError.StateError;
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
             const v_z = try groff.zPosition.fromString(line[1..]);
             var v = fixPointFromZPos(v_z);
-            if (v.integer <= self.cur_page.?.y) {
-                v = v.subtractFrom(self.cur_page.?.y);
-                try self.cur_text_object.?.setF(v);
-                try self.cur_page.?.contents.graphicalObject.setY(v);
+            if (v.integer <= cur_page.y) {
+                v = v.subtractFrom(cur_page.y);
+                try text_obj.setF(v);
+                try cur_page.contents.graphicalObject.setY(v);
             }
         },
         .h => {
@@ -395,10 +471,12 @@ fn handle_cmd(self: *Self, line: []u8) !void {
         .H => {
             // horizontal absolute positioning
             // sample: H72000
+            const cur_page = self.cur_page orelse return TranspileError.StateError;
+            const text_obj = self.cur_text_object orelse return TranspileError.StateError;
             const h_z = try groff.zPosition.fromString(line[1..]);
             const fp_h = fixPointFromZPos(h_z);
-            try self.cur_text_object.?.setE(fp_h);
-            try self.cur_page.?.contents.graphicalObject.setX(fp_h);
+            try text_obj.setE(fp_h);
+            try cur_page.contents.graphicalObject.setX(fp_h);
         },
     }
 }
@@ -422,7 +500,7 @@ pub fn transpile(self: *Self) !u8 {
         // nothing left to read any more
     }
     if (self.doc) |pdf_doc| {
-        try self.writer.print("{f}", .{pdf_doc});
+        try pdf_doc.format(self.writer);
     }
     try self.writer.flush();
     return 0;
