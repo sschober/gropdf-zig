@@ -270,11 +270,14 @@ fn buildFontSearchDirs(gpa: Allocator) !std.array_list.Managed(String) {
 /// Determines Length1/Length2/Length3 split and extracts font metadata from
 /// the clear-text header.
 fn parseType1FontData(gpa: Allocator, data: []const u8) !Type1FontData {
-    // ── Length1: clear-text up to and including the newline after "currentfile eexec" ──
+    // ── Length1: clear-text up to and including the separator after "currentfile eexec" ──
+    // Fonts use \r, \n, or \r\n as the separator. We must NOT search for \n
+    // generically because the binary encrypted data can contain \n bytes.
     const eexec_marker = "currentfile eexec";
     const eexec_idx = std.mem.indexOf(u8, data, eexec_marker) orelse return error.InvalidType1Font;
-    const nl_idx = std.mem.indexOfPos(u8, data, eexec_idx + eexec_marker.len, "\n") orelse return error.InvalidType1Font;
-    const length1 = nl_idx + 1;
+    var length1 = eexec_idx + eexec_marker.len;
+    if (length1 < data.len and data[length1] == '\r') length1 += 1;
+    if (length1 < data.len and data[length1] == '\n') length1 += 1;
 
     // ── Length3: zeros+cleartomark trailer at the very end ──
     const cm_marker = "cleartomark";
@@ -357,6 +360,240 @@ fn parseType1FontData(gpa: Allocator, data: []const u8) !Type1FontData {
         .font_bbox = font_bbox,
         .italic_angle = italic_angle,
         .flags = flags,
+    };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Font subsetting
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Adobe StandardEncoding: maps byte position to PostScript glyph name.
+const standard_encoding: [256]?[]const u8 = build: {
+    var enc: [256]?[]const u8 = .{null} ** 256;
+    enc[32]  = "space";        enc[33]  = "exclam";       enc[34]  = "quotedbl";
+    enc[35]  = "numbersign";   enc[36]  = "dollar";       enc[37]  = "percent";
+    enc[38]  = "ampersand";    enc[39]  = "quoteright";   enc[40]  = "parenleft";
+    enc[41]  = "parenright";   enc[42]  = "asterisk";     enc[43]  = "plus";
+    enc[44]  = "comma";        enc[45]  = "hyphen";       enc[46]  = "period";
+    enc[47]  = "slash";
+    enc[48]  = "zero";    enc[49]  = "one";    enc[50]  = "two";   enc[51]  = "three";
+    enc[52]  = "four";    enc[53]  = "five";   enc[54]  = "six";   enc[55]  = "seven";
+    enc[56]  = "eight";   enc[57]  = "nine";
+    enc[58]  = "colon";        enc[59]  = "semicolon";    enc[60]  = "less";
+    enc[61]  = "equal";        enc[62]  = "greater";      enc[63]  = "question";
+    enc[64]  = "at";
+    enc[65]  = "A"; enc[66]  = "B"; enc[67]  = "C"; enc[68]  = "D"; enc[69]  = "E";
+    enc[70]  = "F"; enc[71]  = "G"; enc[72]  = "H"; enc[73]  = "I"; enc[74]  = "J";
+    enc[75]  = "K"; enc[76]  = "L"; enc[77]  = "M"; enc[78]  = "N"; enc[79]  = "O";
+    enc[80]  = "P"; enc[81]  = "Q"; enc[82]  = "R"; enc[83]  = "S"; enc[84]  = "T";
+    enc[85]  = "U"; enc[86]  = "V"; enc[87]  = "W"; enc[88]  = "X"; enc[89]  = "Y";
+    enc[90]  = "Z";
+    enc[91]  = "bracketleft";  enc[92]  = "backslash";    enc[93]  = "bracketright";
+    enc[94]  = "asciicircum";  enc[95]  = "underscore";   enc[96]  = "quoteleft";
+    enc[97]  = "a"; enc[98]  = "b"; enc[99]  = "c"; enc[100] = "d"; enc[101] = "e";
+    enc[102] = "f"; enc[103] = "g"; enc[104] = "h"; enc[105] = "i"; enc[106] = "j";
+    enc[107] = "k"; enc[108] = "l"; enc[109] = "m"; enc[110] = "n"; enc[111] = "o";
+    enc[112] = "p"; enc[113] = "q"; enc[114] = "r"; enc[115] = "s"; enc[116] = "t";
+    enc[117] = "u"; enc[118] = "v"; enc[119] = "w"; enc[120] = "x"; enc[121] = "y";
+    enc[122] = "z";
+    enc[123] = "braceleft";    enc[124] = "bar";           enc[125] = "braceright";
+    enc[126] = "asciitilde";
+    enc[161] = "exclamdown";    enc[162] = "cent";          enc[163] = "sterling";
+    enc[164] = "fraction";      enc[165] = "yen";           enc[166] = "florin";
+    enc[167] = "section";       enc[168] = "currency";      enc[169] = "quotesingle";
+    enc[170] = "quotedblleft";  enc[171] = "guillemotleft"; enc[172] = "guilsinglleft";
+    enc[173] = "guilsinglright";enc[174] = "fi";            enc[175] = "fl";
+    enc[177] = "endash";        enc[178] = "dagger";        enc[179] = "daggerdbl";
+    enc[180] = "periodcentered";enc[182] = "paragraph";     enc[183] = "bullet";
+    enc[184] = "quotesinglbase";enc[185] = "quotedblbase";  enc[186] = "quotedblright";
+    enc[187] = "guillemotright";enc[188] = "ellipsis";      enc[189] = "perthousand";
+    enc[191] = "questiondown";
+    enc[193] = "grave";         enc[194] = "acute";         enc[195] = "circumflex";
+    enc[196] = "tilde";         enc[197] = "macron";        enc[198] = "breve";
+    enc[199] = "dotaccent";     enc[200] = "dieresis";      enc[202] = "ring";
+    enc[203] = "cedilla";       enc[205] = "hungarumlaut";  enc[206] = "ogonek";
+    enc[207] = "caron";         enc[208] = "emdash";
+    enc[225] = "AE";            enc[227] = "ordfeminine";   enc[232] = "Lslash";
+    enc[233] = "Oslash";        enc[234] = "OE";            enc[235] = "ordmasculine";
+    enc[241] = "ae";            enc[245] = "dotlessi";      enc[248] = "lslash";
+    enc[249] = "oslash";        enc[250] = "oe";            enc[251] = "germandbls";
+    break :build enc;
+};
+
+/// /Differences overrides applied by addEmbeddedFont: [150 /endash /emdash].
+const differences_encoding: [256]?[]const u8 = build: {
+    var d: [256]?[]const u8 = .{null} ** 256;
+    d[150] = "endash";
+    d[151] = "emdash";
+    break :build d;
+};
+
+fn glyphNameForByte(b: u8) ?[]const u8 {
+    return differences_encoding[b] orelse standard_encoding[b];
+}
+
+/// Decrypt the eexec section of a Type1 font (binary form).
+/// Returns the full decrypted stream; the first 4 bytes are the random seed
+/// and should be discarded by the caller.
+fn decryptEexec(gpa: Allocator, ciphertext: []const u8) ![]u8 {
+    const plain = try gpa.alloc(u8, ciphertext.len);
+    var r: u16 = 55665;
+    const c1: u32 = 52845;
+    const c2: u32 = 22719;
+    for (ciphertext, 0..) |b, i| {
+        plain[i] = b ^ @as(u8, @truncate(r >> 8));
+        r = @truncate((@as(u32, b) +% @as(u32, r)) *% c1 +% c2);
+    }
+    return plain;
+}
+
+/// Re-encrypt plaintext using the eexec cipher, prepending 4 null seed bytes.
+fn encryptEexec(gpa: Allocator, plaintext: []const u8) ![]u8 {
+    const cipher = try gpa.alloc(u8, 4 + plaintext.len);
+    var r: u16 = 55665;
+    const c1: u32 = 52845;
+    const c2: u32 = 22719;
+    for (0..4) |i| {
+        // encrypt a null seed byte: cipher = 0 XOR (r >> 8) = high byte of r
+        const c: u8 = @truncate(r >> 8);
+        cipher[i] = c;
+        r = @truncate((@as(u32, c) +% @as(u32, r)) *% c1 +% c2);
+    }
+    for (plaintext, 0..) |p, i| {
+        const c: u8 = p ^ @as(u8, @truncate(r >> 8));
+        cipher[4 + i] = c;
+        r = @truncate((@as(u32, c) +% @as(u32, r)) *% c1 +% c2);
+    }
+    return cipher;
+}
+
+/// Subset a Type1 font to only the glyphs needed for `used_bytes`.
+/// Glyph names are resolved through StandardEncoding plus the /Differences
+/// [150 /endash /emdash] applied by addEmbeddedFont.  Always retains .notdef.
+pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [256]bool) !Type1FontData {
+    // Build the set of needed glyph names.
+    var needed = std.StringHashMap(void).init(gpa);
+    defer needed.deinit();
+    try needed.put(".notdef", {});
+    for (used_bytes, 0..) |used, b| {
+        if (used) {
+            if (glyphNameForByte(@intCast(b))) |name| try needed.put(name, {});
+        }
+    }
+
+    // Decrypt eexec section and skip the 4-byte random seed.
+    const encrypted = font_data.data[font_data.length1 .. font_data.length1 + font_data.length2];
+    const decrypted_full = try decryptEexec(gpa, encrypted);
+    defer gpa.free(decrypted_full);
+    if (decrypted_full.len < 4) return error.InvalidType1Font;
+    const plain = decrypted_full[4..];
+
+    // Locate /CharStrings dict.
+    const cs_kw = "/CharStrings ";
+    const cs_kw_pos = std.mem.indexOf(u8, plain, cs_kw) orelse return error.NoCharStrings;
+
+    // Find the start of the /CharStrings line (for verbatim copy of everything before it).
+    var cs_line_start = cs_kw_pos;
+    while (cs_line_start > 0 and plain[cs_line_start - 1] != '\n') cs_line_start -= 1;
+
+    // Find "begin" marker and the first glyph entry.
+    const begin_kw = "begin";
+    const begin_pos = std.mem.indexOfPos(u8, plain, cs_kw_pos, begin_kw) orelse return error.NoCharStrings;
+    var entries_start = begin_pos + begin_kw.len;
+    while (entries_start < plain.len and
+        (plain[entries_start] == '\n' or plain[entries_start] == '\r' or plain[entries_start] == ' '))
+        entries_start += 1;
+
+    // Detect the readstring operator name (RD or -|) and end operator (ND or |-).
+    const private_section = plain[0..cs_kw_pos];
+    const rd_op: []const u8 = if (std.mem.indexOf(u8, private_section, " RD ") != null or
+        std.mem.indexOf(u8, private_section, "\nRD ") != null) "RD" else "-|";
+    const nd_op: []const u8 = if (std.mem.indexOf(u8, private_section, " ND\n") != null or
+        std.mem.indexOf(u8, private_section, "\nND\n") != null) "ND" else "|-";
+
+    // Parse all glyph entries.  Each entry has the form:
+    //   /name count RD <count binary bytes>ND\n
+    const GlyphEntry = struct {
+        name: []const u8,
+        bytes: []const u8, // verbatim slice of plain from '/' to end of '\n'
+    };
+    var all_glyphs = std.array_list.Managed(GlyphEntry).init(gpa);
+    defer all_glyphs.deinit();
+
+    var pos = entries_start;
+    while (pos < plain.len) {
+        // skip any whitespace between entries (some fonts have space or blank lines)
+        while (pos < plain.len and plain[pos] != '/') {
+            if (plain[pos] == 'e') break; // hit "end"
+            pos += 1;
+        }
+        if (pos >= plain.len or plain[pos] != '/') break;
+        const entry_start = pos;
+        pos += 1; // skip '/'
+
+        const name_end = std.mem.indexOfScalarPos(u8, plain, pos, ' ') orelse break;
+        const glyph_name = plain[pos..name_end];
+        pos = name_end + 1;
+
+        const count_end = std.mem.indexOfScalarPos(u8, plain, pos, ' ') orelse break;
+        const count = std.fmt.parseUnsigned(usize, plain[pos..count_end], 10) catch break;
+        pos = count_end + 1;
+
+        pos += rd_op.len + 1; // skip "RD "
+        if (pos + count > plain.len) break;
+        pos += count; // skip binary charstring data
+        pos += nd_op.len; // skip "ND"
+
+        // skip line ending
+        while (pos < plain.len and (plain[pos] == '\n' or plain[pos] == '\r')) pos += 1;
+
+        try all_glyphs.append(.{ .name = glyph_name, .bytes = plain[entry_start..pos] });
+    }
+
+    // Skip the "end" that closes the CharStrings dict.
+    var after_cs = pos;
+    if (std.mem.startsWith(u8, plain[after_cs..], "end")) {
+        after_cs += 3;
+        while (after_cs < plain.len and (plain[after_cs] == '\n' or plain[after_cs] == '\r'))
+            after_cs += 1;
+    }
+
+    // Count kept glyphs and build new plaintext.
+    var kept: usize = 0;
+    for (all_glyphs.items) |g| {
+        if (needed.contains(g.name)) kept += 1;
+    }
+
+    var new_plain = std.array_list.Managed(u8).init(gpa);
+    defer new_plain.deinit();
+    try new_plain.appendSlice(plain[0..cs_line_start]);
+    try new_plain.writer().print("/CharStrings {d} dict dup begin\n", .{kept});
+    for (all_glyphs.items) |g| {
+        if (needed.contains(g.name)) try new_plain.appendSlice(g.bytes);
+    }
+    try new_plain.appendSlice("end\n");
+    try new_plain.appendSlice(plain[after_cs..]);
+
+    // Re-encrypt (prepends 4-byte seed) and reassemble around the original header/trailer.
+    const new_encrypted = try encryptEexec(gpa, new_plain.items);
+    errdefer gpa.free(new_encrypted);
+
+    const header = font_data.data[0..font_data.length1];
+    const trailer = font_data.data[font_data.length1 + font_data.length2 ..];
+    const new_data = try std.mem.concat(gpa, u8, &.{ header, new_encrypted, trailer });
+
+    log.dbg("groff: subset font {s}: {d} -> {d} bytes ({d}/{d} glyphs)\n", .{
+        font_data.font_name, font_data.data.len, new_data.len, kept, all_glyphs.items.len,
+    });
+    return Type1FontData{
+        .data = new_data,
+        .length1 = font_data.length1,
+        .length2 = new_encrypted.len,
+        .length3 = font_data.length3,
+        .font_name = font_data.font_name,
+        .font_bbox = font_data.font_bbox,
+        .italic_angle = font_data.italic_angle,
+        .flags = font_data.flags,
     };
 }
 

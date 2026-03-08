@@ -642,6 +642,8 @@ pub const Document = struct {
     /// linear sequence of objects, that together form the document
     objs: ArrayList(*Object),
     fonts: ArrayList(*Font),
+    /// parallel to fonts; non-null only for embedded fonts
+    font_file_streams: ArrayList(?*FontFileStream),
     pages: *Pages,
     catalog: *Catalog,
 
@@ -658,7 +660,8 @@ pub const Document = struct {
             .objs = ArrayList(*Object).init(allocator), //
             .pages = try Pages.init(allocator, 1), //
             .catalog = try Catalog.init(allocator, 2), //
-            .fonts = ArrayList(*Font).init((allocator)),
+            .fonts = ArrayList(*Font).init(allocator),
+            .font_file_streams = ArrayList(?*FontFileStream).init(allocator),
         };
         try self.addObj(try self.pages.pdfObj());
         try self.addObj(try self.catalog.pdfObj());
@@ -708,6 +711,7 @@ pub const Document = struct {
         font.font_descriptor_obj_num = fd_obj_num;
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
+        try self.font_file_streams.append(ff);
 
         const result = FontRef{ .idx = fontNum };
         log.dbg("pdf: embedded font {s} as {f} (ff={d} fd={d} font={d})\n", .{
@@ -724,9 +728,16 @@ pub const Document = struct {
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
+        try self.font_file_streams.append(null);
         const result = FontRef{ .idx = fontNum };
         log.dbg("pdf: added font as {f} with idx {d}:\n{s}\n", .{ result, objIdx, f });
         return result;
+    }
+
+    /// Returns the FontFileStream for an embedded font, or null for standard fonts.
+    pub fn getFontFileStream(self: *Document, font_idx: usize) ?*FontFileStream {
+        if (font_idx >= self.font_file_streams.items.len) return null;
+        return self.font_file_streams.items[font_idx];
     }
 
     /// once a font was added to the document, use this to add a reference to a page
