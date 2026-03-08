@@ -31,54 +31,64 @@ if I could implement a reasonable subset of `groff_out(5)`.
 
 At the moment, we implement a _small subset_ of the `grout` language only:
 
-* We support only a single font, "Times New Roman", as that can be
-referenced very easily in PDF, without the need to embed it.
-* Only line drawing commands are interpreted - enough for header or
-  footer lines
-
-We could reduce the resulting PDF file size by using zflate
-compression, but at the moment I do not see any need for this.
+* All standard PDF fonts (Times, Helvetica, Courier, Symbol, ZapfDingbats)
+  are referenced by name without embedding — the PDF viewer supplies the
+  glyphs.  groff's default fonts (`TR`, `TB`, `TI`, `CR`, …) map directly
+  to these standard fonts.
+* For fonts that have no standard PDF equivalent, gropdf.zig searches the
+  system font directories for a matching Type1 PFA file, subsets it to only
+  the glyphs actually used, and embeds the result directly in the PDF.
+* All PDF streams (page content and embedded font data) are compressed with
+  zlib (FlateDecode), keeping output files compact.
+* Only line drawing commands are interpreted — enough for header or footer
+  lines.
 
 ## Usage
 
-We provide a sample input file, `input.mom`, which contains `groff`
-source code using the `mom` package.
-
-This input file can be rendered to a PDF using the following `groff`
-invocation:
+A sample input file lives in `samples/input.mom`.  It can be rendered to a
+PDF using the native groff device for comparison:
 
 ```bash
-groff -Tpdf -mom input.mom > orig.pdf
+groff -Tpdf -mom samples/input.mom > samples/orig.pdf
 ```
 
-This is using the vanilla pdf device `gropdf.pl`, which comes with `groff`.
-
-As our device needs `grout` as input language, we need to get to it using the
-following command:
+As our device reads `grout` (groff intermediate output), convert first:
 
 ```bash
-groff -Tpdf -Z -mom input.mom > input.grout
+groff -Tpdf -Z -mom samples/input.mom > samples/input.grout
 ```
 
-Then, we can render it 
+Then render with gropdf.zig:
 
 ```bash
-$ zig build run < input.grout > sample-out.pdf
+zig build run < samples/input.grout > samples/out.pdf
 ```
 
-and inspect it, using any PDF viewer. On macos this might be:
+and inspect it using any PDF viewer.  On macOS:
 
 ```bash
-$ open sample-out.pdf
+open samples/out.pdf
 ```
 
-### Pipelines
-
-You can also avoid the intermediate file and issue a pipeline command:
+### Pipeline (no intermediate file)
 
 ```bash
-$ groff -Tpdf -Z -mom input.mom | ./zig-out/bin/gropdf_zig > sample-out.pdf
+groff -Tpdf -Z -mom samples/input.mom | ./zig-out/bin/gropdf_zig > samples/out.pdf
 ```
+
+## Output size
+
+For the three-page demo document using groff's default fonts (Times, Courier):
+
+| Configuration | File size |
+|---|---|
+| `groff -Tpdf` (standard fonts + FlateDecode) | ~7.8 KB |
+| gropdf.zig standard fonts + FlateDecode | ~9.8 KB |
+| gropdf.zig embedded + subsetted fonts + FlateDecode | ~44 KB |
+
+The small remaining gap vs. native groff is due to the explicit `/Encoding`
+dictionary gropdf.zig adds to every font.  See [docs/fonts.md](docs/fonts.md)
+for a full explanation of font selection, subsetting, and compression.
 
 
 ## Performance
