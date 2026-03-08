@@ -112,7 +112,7 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
                 try self.used_chars.put(doc_font_ref.idx, .{false} ** 256);
                 try self.embedded_font_data.put(doc_font_ref.idx, font_data);
             } else {
-                log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
+                log.err("error: could not find font file for: {s}\n", .{grout_font_ref.name});
                 return;
             }
         } else return TranspileError.StateError;

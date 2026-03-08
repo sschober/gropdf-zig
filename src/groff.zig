@@ -114,31 +114,29 @@ pub const RgbColor = struct {
 /// custom error for groff path problems
 const GroffPathError = error{FontNotFound} || Allocator.Error;
 
-/// try to locate given font under a given set of search candidate paths
+/// try to locate given font under a given set of search candidate paths.
+/// Searches site-font dirs (for user-installed fonts) before the standard
+/// groff installation dirs.
 pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
-    const search_paths =
+    // Candidate base directories, searched in priority order.
+    // site-font comes first so user-installed fonts override built-ins.
+    const search_bases =
         [_]String{
-            "/usr/share/groff/current", // standard unix and linux path
-            "/usr/local/share/groff/current", // standard source install unix and linux path
-            "/opt/homebrew/share/groff/current", // macos homebrew install path
+            "/opt/homebrew/etc/groff/site-font", // homebrew site-font (user-installed)
+            "/usr/local/etc/groff/site-font", // source-install site-font
+            "/etc/groff/site-font", // system-wide site-font on linux
+            "/usr/share/groff/current/font", // standard unix/linux
+            "/usr/local/share/groff/current/font", // source-install
+            "/opt/homebrew/share/groff/current/font", // macos homebrew
         };
-    var search_path: String = "";
-    for (search_paths) |path| {
-        const stat = std.fs.cwd().statFile(path) catch {
+    for (search_bases) |base| {
+        const path = try std.fmt.allocPrint(gpa, "{s}/devpdf/{s}", .{ base, font_name });
+        std.fs.accessAbsolute(path, .{}) catch {
+            gpa.free(path);
             continue;
         };
-        switch (stat.kind) {
-            .directory => {
-                log.dbg("groff: found {s}\n", .{path});
-                search_path = path;
-                break;
-            },
-            else => {},
-        }
-    }
-    if (search_path.len > 0) {
-        // TODO look if font is really there, not only dir
-        return std.fmt.allocPrint(gpa, "{s}/font/devpdf/{s}", .{ search_path, font_name });
+        log.dbg("groff: located font {s} at {s}\n", .{ font_name, path });
+        return path;
     }
     return GroffPathError.FontNotFound;
 }
@@ -175,9 +173,12 @@ pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
         const glyph_width_usize = try std.fmt.parseUnsigned(usize, glyph_width, 10);
         _ = it_glyph.next().?; //type
         const index = it_glyph.next().?;
-        const index_usize = try std.fmt.parseUnsigned(usize, index, 10);
+        // Code -1 means the glyph has no byte code; skip it
+        const index_usize = std.fmt.parseUnsigned(usize, index, 10) catch continue;
         _ = it_glyph.next().?;
-        glyph_widths[index_usize] = glyph_width_usize;
+        if (index_usize < glyph_widths.len) {
+            glyph_widths[index_usize] = glyph_width_usize;
+        }
     }
     return glyph_widths;
 }
@@ -252,6 +253,16 @@ fn buildFontSearchDirs(gpa: Allocator) !std.array_list.Managed(String) {
             continue;
         };
         try dirs.append(no_ver);
+    }
+
+    // Groff site-font devpdf dirs — where custom Type1 fonts installed for groff live
+    for ([_]String{
+        "/opt/homebrew/etc/groff/site-font/devpdf",
+        "/usr/local/etc/groff/site-font/devpdf",
+        "/etc/groff/site-font/devpdf",
+    }) |p| {
+        std.fs.accessAbsolute(p, .{}) catch continue;
+        try dirs.append(p);
     }
 
     // Static fallbacks for system font locations
@@ -432,10 +443,68 @@ fn glyphNameForByte(b: u8) ?[]const u8 {
     return differences_encoding[b] orelse standard_encoding[b];
 }
 
-/// Decrypt the eexec section of a Type1 font (binary form).
+/// Decode a PFA hex-encoded eexec section to binary.
+/// PFA fonts encode the encrypted bytes as ASCII hex pairs, possibly split
+/// across lines with whitespace.  Returns allocated binary slice.
+fn decodePfaHex(gpa: Allocator, hex_data: []const u8) ![]u8 {
+    // Count non-whitespace bytes to size output
+    var n_hex: usize = 0;
+    for (hex_data) |b| {
+        if (b != ' ' and b != '\t' and b != '\r' and b != '\n') n_hex += 1;
+    }
+    if (n_hex % 2 != 0) return error.InvalidType1Font;
+    const out = try gpa.alloc(u8, n_hex / 2);
+    var i: usize = 0;
+    var nibble: u8 = 0;
+    var nibble_idx: u1 = 0;
+    for (hex_data) |b| {
+        if (b == ' ' or b == '\t' or b == '\r' or b == '\n') continue;
+        const digit: u8 = switch (b) {
+            '0'...'9' => b - '0',
+            'a'...'f' => b - 'a' + 10,
+            'A'...'F' => b - 'A' + 10,
+            else => return error.InvalidType1Font,
+        };
+        if (nibble_idx == 0) {
+            nibble = digit << 4;
+            nibble_idx = 1;
+        } else {
+            out[i] = nibble | digit;
+            i += 1;
+            nibble_idx = 0;
+        }
+    }
+    return out;
+}
+
+/// Detect whether a Type1 eexec section is PFA (ASCII hex) or PFB (binary).
+/// Checks the first non-whitespace byte: PFA hex sections only contain
+/// hex digits and whitespace, PFB sections contain arbitrary binary bytes.
+fn isPfaHex(data: []const u8) bool {
+    for (data) |b| {
+        if (b == ' ' or b == '\t' or b == '\r' or b == '\n') continue;
+        return switch (b) {
+            '0'...'9', 'a'...'f', 'A'...'F' => true,
+            else => false,
+        };
+    }
+    return false;
+}
+
+/// Decrypt the eexec section of a Type1 font.
+/// Handles both binary PFB form and ASCII hex PFA form automatically.
 /// Returns the full decrypted stream; the first 4 bytes are the random seed
 /// and should be discarded by the caller.
 fn decryptEexec(gpa: Allocator, ciphertext: []const u8) ![]u8 {
+    if (isPfaHex(ciphertext)) {
+        const binary = try decodePfaHex(gpa, ciphertext);
+        defer gpa.free(binary);
+        return decryptEexecBinary(gpa, binary);
+    }
+    return decryptEexecBinary(gpa, ciphertext);
+}
+
+fn decryptEexecBinary(gpa: Allocator, ciphertext: []const u8) ![]u8 {
     const plain = try gpa.alloc(u8, ciphertext.len);
     var r: u16 = 55665;
     const c1: u32 = 52845;
@@ -597,26 +666,64 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [25
     };
 }
 
+/// Read the `internalname` field from a groff font descriptor file.
+/// Returns null if the file cannot be opened or has no internalname line.
+fn readInternalName(gpa: Allocator, groff_name: String) !?String {
+    const groff_path = locateFont(gpa, groff_name) catch return null;
+    defer gpa.free(groff_path);
+    var file = std.fs.openFileAbsolute(groff_path, .{}) catch return null;
+    defer file.close();
+    var read_buf: [4096]u8 = undefined;
+    var reader = file.reader(&read_buf);
+    const ifc = &reader.interface;
+    const prefix = "internalname ";
+    while (try ifc.takeDelimiter('\n')) |line| {
+        if (std.mem.startsWith(u8, line, prefix)) {
+            const name = std.mem.trim(u8, line[prefix.len..], " \t\r");
+            return try gpa.dupe(u8, name);
+        }
+        // Stop at the charset section — internalname is always in the header
+        if (std.mem.eql(u8, std.mem.trim(u8, line, " \t\r"), "charset")) break;
+    }
+    return null;
+}
+
 /// Try to find, read, and parse a Type1 font for the given groff font name.
 /// Returns `null` if no font file is found in the search paths.
 pub fn findAndLoadFont(gpa: Allocator, groff_name: String) !?Type1FontData {
-    const candidates = getFontFileCandidates(groff_name);
-    if (candidates.len == 0) return null;
+    const known_candidates = getFontFileCandidates(groff_name);
+    // For fonts not in the static map, read the groff font descriptor to get
+    // the internalname (e.g. MinionR -> MinionPro-Regular), then fall back to
+    // the groff name itself if there is no descriptor or no internalname field.
+    var internal_name_buf: ?String = null;
+    defer if (internal_name_buf) |s| gpa.free(s);
+    const candidates: []const String = if (known_candidates.len > 0)
+        known_candidates
+    else blk: {
+        if (try readInternalName(gpa, groff_name)) |internal| {
+            internal_name_buf = internal;
+            break :blk @as([]const String, &[1]String{internal});
+        }
+        break :blk &[1]String{groff_name};
+    };
 
     const search_dirs = try buildFontSearchDirs(gpa);
 
     for (search_dirs.items) |dir| {
         for (candidates) |name| {
-            const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ dir, name });
-            const data = std.fs.cwd().readFileAlloc(gpa, path, 20 * 1024 * 1024) catch {
+            // Try without extension, then common Type1 extensions
+            for ([_]String{ "", ".pfa", ".pfb" }) |ext| {
+                const path = try std.fmt.allocPrint(gpa, "{s}/{s}{s}", .{ dir, name, ext });
+                const data = std.fs.cwd().readFileAlloc(gpa, path, 20 * 1024 * 1024) catch {
+                    gpa.free(path);
+                    continue;
+                };
                 gpa.free(path);
-                continue;
-            };
-            gpa.free(path);
-            return parseType1FontData(gpa, data) catch |err| {
-                log.warn("warning: could not parse Type1 font {s}: {}\n", .{ name, err });
-                continue;
-            };
+                return parseType1FontData(gpa, data) catch |err| {
+                    log.warn("warning: could not parse Type1 font {s}{s}: {}\n", .{ name, ext, err });
+                    continue;
+                };
+            }
         }
     }
     return null;
