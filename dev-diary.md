@@ -89,7 +89,7 @@ Text, or words are being introduced by `t` and inter-word spaces with
 `wh`, in the first go I could ignore all the rest and I would have a
 very simple pdf device!
 
-### Some Iterations later
+## Some Iterations later
 
 %Turns out, I had to refactor the whole design quite a bit: Firstly, I gave up
 on the embedded `PdfObject`. That approach seemed simply too awkward to use. A
