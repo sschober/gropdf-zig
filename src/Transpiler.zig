@@ -26,6 +26,11 @@ doc_font_map: std.AutoHashMap(usize, pdf.Document.FontRef),
 // maps pdf font numbers to glyph widths maps
 font_glyph_widths_maps: std.AutoHashMap(usize, [257]usize),
 
+// maps doc_font_ref.idx -> set of used byte codes (only for embedded fonts)
+used_chars: std.AutoHashMap(usize, [256]bool),
+// maps doc_font_ref.idx -> original Type1FontData (for subsetting)
+embedded_font_data: std.AutoHashMap(usize, groff.Type1FontData),
+
 // transpilation state - we use optionals here, as zig does not allow null pointers
 doc: ?pdf.Document = null,
 cur_text_object: ?*pdf.TextObject = null,
@@ -47,6 +52,8 @@ pub fn init(allocator: Allocator, reader: *std.Io.Reader, writer: *std.Io.Writer
         .page_font_map = std.AutoHashMap(usize, pdf.Page.FontRef).init(allocator),
         .doc_font_map = std.AutoHashMap(usize, pdf.Document.FontRef).init(allocator),
         .font_glyph_widths_maps = std.AutoHashMap(usize, groff.GlyphMap).init(allocator),
+        .used_chars = std.AutoHashMap(usize, [256]bool).init(allocator),
+        .embedded_font_data = std.AutoHashMap(usize, groff.Type1FontData).init(allocator),
     };
 }
 
@@ -92,22 +99,37 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
         doc_font_ref = self.doc_font_map.get(grout_font_ref.idx) orelse unreachable;
     } else {
         // this is a new font, we did not see up until now...
-        const doc = self.doc orelse return TranspileError.StateError;
-        if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
-            doc_font_ref = try doc.addStandardFont(pdf_std_font);
-        } else {
-            log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
-            return;
-        }
+        if (self.doc) |*doc| {
+            // Prefer standard PDF font references (no embedding needed); only embed
+            // when there is no standard equivalent for this groff font name.
+            if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
+                doc_font_ref = try doc.addStandardFont(pdf_std_font);
+            } else if (try groff.findAndLoadFont(self.allocator, grout_font_ref.name)) |font_data| {
+                log.dbg("{d}: embedding Type1 font {s} for groff font {s}\n", .{
+                    self.cur_line_num, font_data.font_name, grout_font_ref.name,
+                });
+                doc_font_ref = try doc.addEmbeddedFont(font_data);
+                try self.used_chars.put(doc_font_ref.idx, .{false} ** 256);
+                try self.embedded_font_data.put(doc_font_ref.idx, font_data);
+            } else {
+                log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
+                return;
+            }
+        } else return TranspileError.StateError;
+        // register in doc_font_map so subsequent x font commands for the same
+        // groff font number reuse the existing PDF font object instead of
+        // embedding another copy
+        try self.doc_font_map.put(grout_font_ref.idx, doc_font_ref);
         // the glyph map helps us move the x position in PDF text objects forward
         const glyph_widths_map = try groff.readGlyphMap(self.allocator, grout_font_ref.name);
         try self.font_glyph_widths_maps.put(grout_font_ref.idx, glyph_widths_map);
     }
-    const doc = self.doc orelse return TranspileError.StateError;
-    const cur_page = self.cur_page orelse return TranspileError.StateError;
-    const page_font_ref = try doc.addFontRefTo(cur_page, doc_font_ref);
-    log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
-    try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
+    if (self.doc) |*doc| {
+        const cur_page = self.cur_page orelse return TranspileError.StateError;
+        const page_font_ref = try doc.addFontRefTo(cur_page, doc_font_ref);
+        log.dbg("{d}: adding {s} as {f} to page font map\n", .{ self.cur_line_num, grout_font_ref.name, doc_font_ref });
+        try self.page_font_map.put(grout_font_ref.idx, page_font_ref);
+    } else return TranspileError.StateError;
 }
 
 /// handle grout `fN` command - parses N as usize argument, selects font from page
@@ -129,8 +151,9 @@ fn handle_f(self: *Self, line: []u8) !void {
 /// begin a new page in pdf document, copy over the page dimensions from previous page
 /// sample: `p2`
 fn handle_p(self: *Self) !void {
-    const doc = self.doc orelse return TranspileError.StateError;
-    self.cur_page = try doc.addPage();
+    if (self.doc) |*doc| {
+        self.cur_page = try doc.addPage();
+    } else return TranspileError.StateError;
     const cur_page = self.cur_page orelse unreachable;
     if (self.cur_x > 0) {
         cur_page.x = self.cur_x;
@@ -250,10 +273,10 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{
     .{ "em", 151 },   // em-dash
     .{ "en", 150 },   // en-dash
     // quotes
-    .{ "lq", 141 },   // left double quote
-    .{ "rq", 142 },   // right double quote
-    .{ "cq", 0o251 }, // close quote (right single)
-    .{ "oq", 0o140 }, // open quote (left single)
+    .{ "lq", 170 },   // left double quote = quotedblleft in StandardEncoding
+    .{ "rq", 186 },   // right double quote = quotedblright in StandardEncoding
+    .{ "cq", 169 },   // close quote (right single) = quotesingle in StandardEncoding
+    .{ "oq", 96 },    // open quote (left single) = quoteleft in StandardEncoding
     .{ "dq", 34 },    // double quote
     .{ "aq", 39 },    // apostrophe
     // punctuation and symbols
@@ -333,6 +356,15 @@ fn groffRgbToPdfRgbColor(gc: groff.RgbColor) !pdf.RgbColor {
     };
 }
 
+/// Record which byte codes are output for the current font (used for subsetting).
+fn trackBytes(self: *Self, bytes: []const u8) void {
+    const font_num = self.cur_groff_font_num orelse return;
+    const doc_ref = self.doc_font_map.get(font_num) orelse return;
+    if (self.used_chars.getPtr(doc_ref.idx)) |set| {
+        for (bytes) |b| set[b] = true;
+    }
+}
+
 fn handle_m(self: *Self, line: []u8) !void {
     if (line.len < 1) return TranspileError.MissingArgument;
     const sub_cmd = std.meta.stringToEnum(groff.MSubCommand, line[0..1]) orelse {
@@ -376,6 +408,7 @@ fn handle_cmd(self: *Self, line: []u8) !void {
             }
             const text_obj = self.cur_text_object orelse return TranspileError.StateError;
             if (glyph_map.get(line[1..3])) |code| {
+                self.trackBytes(&.{code});
                 try text_obj.addWordWithoutMove(&.{code});
             } else {
                 log.warn("{d}: warning: unhandled character sequence: {s}\n", .{ self.cur_line_num, line[1..3] });
@@ -413,6 +446,7 @@ fn handle_cmd(self: *Self, line: []u8) !void {
                 return;
             };
             const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            self.trackBytes(line[1..]);
             try text_obj.addWord(line[1..], glyph_widths_map, self.cur_font_size);
         },
         .u => {
@@ -428,6 +462,7 @@ fn handle_cmd(self: *Self, line: []u8) !void {
                 return;
             };
             const text_obj = self.cur_text_object orelse return TranspileError.StateError;
+            self.trackBytes(word);
             try text_obj.addWord(word, glyph_widths_map, self.cur_font_size);
         },
         .w => {
@@ -496,8 +531,23 @@ pub fn transpile(self: *Self) !u8 {
     } else |_| {
         // nothing left to read any more
     }
-    if (self.doc) |pdf_doc| {
-        try self.writer.print("{f}", .{pdf_doc});
+    if (self.doc) |*doc| {
+        // Subset each embedded font to only the glyphs actually used.
+        var it = self.used_chars.iterator();
+        while (it.next()) |entry| {
+            const font_idx = entry.key_ptr.*;
+            const used = entry.value_ptr.*;
+            if (self.embedded_font_data.get(font_idx)) |font_data| {
+                if (doc.getFontFileStream(font_idx)) |ffs| {
+                    const subset = try groff.subsetType1Font(self.allocator, font_data, used);
+                    ffs.data = subset.data;
+                    ffs.length1 = subset.length1;
+                    ffs.length2 = subset.length2;
+                    ffs.length3 = subset.length3;
+                }
+            }
+        }
+        try doc.format(self.writer);
     }
     try self.writer.flush();
     return 0;

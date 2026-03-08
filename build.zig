@@ -36,6 +36,8 @@ pub fn build(b: *std.Build) void {
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
+    exe.linkSystemLibrary("z");
+    exe.linkLibC();
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another

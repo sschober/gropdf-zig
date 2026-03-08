@@ -6,11 +6,24 @@
 const std = @import("std");
 const FixPoint = @import("FixPoint.zig");
 const log = @import("log.zig");
+const common = @import("common.zig");
+const zlib = @cImport(@cInclude("zlib.h"));
 
 /// alias to shorten usages below
 const Allocator = std.mem.Allocator;
 const String = []const u8;
 const ArrayList = std.array_list.Managed;
+
+/// Compress `data` with zlib (FlateDecode) using system libz.
+fn zlibCompress(allocator: Allocator, data: []const u8) ![]u8 {
+    const bound = zlib.compressBound(@intCast(data.len));
+    const buf = try allocator.alloc(u8, @intCast(bound));
+    errdefer allocator.free(buf);
+    var dest_len: zlib.uLongf = @intCast(bound);
+    const ret = zlib.compress2(buf.ptr, &dest_len, data.ptr, @intCast(data.len), 6);
+    if (ret != zlib.Z_OK) return error.CompressionFailed;
+    return allocator.realloc(buf, @intCast(dest_len));
+}
 
 // TODO read unitscale from device DESC file
 /// device dependent scaling factor for measures like page dimensions and font
@@ -43,19 +56,22 @@ pub const StandardFonts = enum {
     Symbol,
     Zapf_Dingbats,
     pub fn string(self: StandardFonts) String {
+        // All Type1 text fonts use StandardEncoding with two extra differences for
+        // en-dash and em-dash (groff sends bytes 150/151 for these).
+        const enc = "\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>";
         switch (self) {
-            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1",
-            .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1",
-            .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1",
-            .Times_Bold_Italic => return "/BaseFont /Times-BoldItalic\n/Subtype /Type1",
-            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1",
-            .Helvetica_Bold => return "/BaseFont /Helvetica-Bold\n/Subtype /Type1",
-            .Helvetica_Oblique => return "/BaseFont /Helvetica-Oblique\n/Subtype /Type1",
-            .Helvetica_Bold_Oblique => return "/BaseFont /Helvetica-BoldOblique\n/Subtype /Type1",
-            .Courier => return "/BaseFont /Courier\n/Subtype /Type1",
-            .Courier_Bold => return "/BaseFont /Courier-Bold\n/Subtype /Type1",
-            .Courier_Olbique => return "/BaseFont /Courier-Oblique\n/Subtype /Type1",
-            .Courier_Bold_Oblique => return "/BaseFont /Courier-BoldOblique\n/Subtype /Type1",
+            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1" ++ enc,
+            .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1" ++ enc,
+            .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1" ++ enc,
+            .Times_Bold_Italic => return "/BaseFont /Times-BoldItalic\n/Subtype /Type1" ++ enc,
+            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1" ++ enc,
+            .Helvetica_Bold => return "/BaseFont /Helvetica-Bold\n/Subtype /Type1" ++ enc,
+            .Helvetica_Oblique => return "/BaseFont /Helvetica-Oblique\n/Subtype /Type1" ++ enc,
+            .Helvetica_Bold_Oblique => return "/BaseFont /Helvetica-BoldOblique\n/Subtype /Type1" ++ enc,
+            .Courier => return "/BaseFont /Courier\n/Subtype /Type1" ++ enc,
+            .Courier_Bold => return "/BaseFont /Courier-Bold\n/Subtype /Type1" ++ enc,
+            .Courier_Olbique => return "/BaseFont /Courier-Oblique\n/Subtype /Type1" ++ enc,
+            .Courier_Bold_Oblique => return "/BaseFont /Courier-BoldOblique\n/Subtype /Type1" ++ enc,
             .Symbol => return "/BaseFont /Symbol\n/Subtype /Type1",
             .Zapf_Dingbats => return "/BaseFont /ZapfDingbats\n/Subtype /Type1",
         }
@@ -355,19 +371,27 @@ pub const Stream = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
-        // pre-render content to measure its byte length for the /Length field
-        const stream = try std.fmt.allocPrint(self.allocator,
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
+        // pre-render content, then compress
+        const plain = try std.fmt.allocPrint(self.allocator,
             "{f}\n{f}", .{ self.graphicalObject, self.textObject });
+        defer self.allocator.free(plain);
+        const compressed = try zlibCompress(self.allocator, plain);
+        defer self.allocator.free(compressed);
         try writer.print(
             \\<<
+            \\/Filter /FlateDecode
             \\/Length {d}
             \\>>
             \\stream
-            \\{s}
+            \\
+        , .{compressed.len});
+        try writer.writeAll(compressed);
+        try writer.print(
+            \\
             \\endstream
             \\
-        , .{ stream.len, stream });
+        , .{});
     }
     pub fn pdfObj(self: *Stream) !*Object {
         const res = try self.allocator.create(Object);
@@ -384,6 +408,8 @@ pub const Font = struct {
     /// fonts are numbered in a document; the numbers are managed and assign in Document
     fontNum: usize,
     fontDef: String,
+    /// when set, a /FontDescriptor entry is added pointing to an embedded font descriptor
+    font_descriptor_obj_num: ?usize = null,
     pub fn init(allocator: Allocator, n: usize, l: usize, f: String) !*Font {
         const res = try allocator.create(Font);
         res.* = Font{ .allocator = allocator, .objNum = n, .fontNum = l, .fontDef = f };
@@ -393,17 +419,123 @@ pub const Font = struct {
         self: @This(),
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
-        try writer.print(
-            \\<<
-            \\/Type /Font
-            \\{s}
-            \\>>
-            \\
-        , .{self.fontDef});
+        try writer.print("<<\n/Type /Font\n{s}\n", .{self.fontDef});
+        if (self.font_descriptor_obj_num) |desc_num| {
+            try writer.print("/FontDescriptor {d} 0 R\n", .{desc_num});
+        }
+        try writer.print(">>\n", .{});
     }
     pub fn pdfObj(self: *Font) !*Object {
         const res = try self.allocator.create(Object);
         res.* = Object{ .font = self };
+        return res;
+    }
+};
+
+/// Holds the raw bytes of an embedded Type1 font program as a PDF stream object.
+pub const FontFileStream = struct {
+    allocator: Allocator,
+    objNum: usize,
+    data: []const u8,
+    length1: usize,
+    length2: usize,
+    length3: usize,
+
+    pub fn init(allocator: Allocator, n: usize, font_data: common.Type1FontData) !*FontFileStream {
+        const res = try allocator.create(FontFileStream);
+        res.* = .{
+            .allocator = allocator,
+            .objNum = n,
+            .data = font_data.data,
+            .length1 = font_data.length1,
+            .length2 = font_data.length2,
+            .length3 = font_data.length3,
+        };
+        return res;
+    }
+
+    pub fn format(self: @This(), writer: *std.Io.Writer) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
+        const compressed = try zlibCompress(self.allocator, self.data);
+        defer self.allocator.free(compressed);
+        try writer.print(
+            "<<\n/Filter /FlateDecode\n/Length {d}\n/Length1 {d}\n/Length2 {d}\n/Length3 {d}\n>>\nstream\n",
+            .{ compressed.len, self.length1, self.length2, self.length3 },
+        );
+        try writer.writeAll(compressed);
+        try writer.print("\nendstream\n", .{});
+    }
+
+    pub fn pdfObj(self: *FontFileStream) !*Object {
+        const res = try self.allocator.create(Object);
+        res.* = Object{ .font_file_stream = self };
+        return res;
+    }
+};
+
+/// PDF FontDescriptor object — font metrics and reference to the embedded font file.
+pub const FontDescriptor = struct {
+    allocator: Allocator,
+    objNum: usize,
+    font_name: String,
+    font_bbox: [4]i64,
+    flags: u32,
+    italic_angle: i64,
+    ascent: i64,
+    descent: i64,
+    cap_height: i64,
+    stem_v: i64,
+    font_file_obj_num: usize,
+
+    pub fn init(allocator: Allocator, n: usize, font_data: common.Type1FontData, ff_obj_num: usize) !*FontDescriptor {
+        const res = try allocator.create(FontDescriptor);
+        const bbox = font_data.font_bbox;
+        res.* = .{
+            .allocator = allocator,
+            .objNum = n,
+            .font_name = font_data.font_name,
+            .font_bbox = bbox,
+            .flags = font_data.flags,
+            .italic_angle = font_data.italic_angle,
+            .ascent = if (bbox[3] > 0) bbox[3] else 700,
+            .descent = if (bbox[1] < 0) bbox[1] else -200,
+            .cap_height = if (bbox[3] > 0) @divTrunc(bbox[3] * 7, 10) else 680,
+            .stem_v = if (font_data.flags & 1 != 0) 100 else 80, // heavier stem for monospace
+            .font_file_obj_num = ff_obj_num,
+        };
+        return res;
+    }
+
+    pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print(
+            \\<<
+            \\/Type /FontDescriptor
+            \\/FontName /{s}
+            \\/Flags {d}
+            \\/FontBBox [{d} {d} {d} {d}]
+            \\/ItalicAngle {d}
+            \\/Ascent {d}
+            \\/Descent {d}
+            \\/CapHeight {d}
+            \\/StemV {d}
+            \\/FontFile {d} 0 R
+            \\>>
+            \\
+        , .{
+            self.font_name,
+            self.flags,
+            self.font_bbox[0], self.font_bbox[1], self.font_bbox[2], self.font_bbox[3],
+            self.italic_angle,
+            self.ascent,
+            self.descent,
+            self.cap_height,
+            self.stem_v,
+            self.font_file_obj_num,
+        });
+    }
+
+    pub fn pdfObj(self: *FontDescriptor) !*Object {
+        const res = try self.allocator.create(Object);
+        res.* = Object{ .font_descriptor = self };
         return res;
     }
 };
@@ -448,7 +580,7 @@ pub const Page = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         try writer.print(
             \\<<
             \\/Type /Page
@@ -511,11 +643,13 @@ pub const Object = union(enum) {
     catalog: *Catalog,
     font: *Font,
     stream: *Stream,
+    font_file_stream: *FontFileStream,
+    font_descriptor: *FontDescriptor,
 
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         switch (self) {
             inline else => |impl| return impl.format(writer),
         }
@@ -534,6 +668,8 @@ pub const Document = struct {
     /// linear sequence of objects, that together form the document
     objs: ArrayList(*Object),
     fonts: ArrayList(*Font),
+    /// parallel to fonts; non-null only for embedded fonts
+    font_file_streams: ArrayList(?*FontFileStream),
     pages: *Pages,
     catalog: *Catalog,
 
@@ -550,7 +686,8 @@ pub const Document = struct {
             .objs = ArrayList(*Object).init(allocator), //
             .pages = try Pages.init(allocator, 1), //
             .catalog = try Catalog.init(allocator, 2), //
-            .fonts = ArrayList(*Font).init((allocator)),
+            .fonts = ArrayList(*Font).init(allocator),
+            .font_file_streams = ArrayList(?*FontFileStream).init(allocator),
         };
         try self.addObj(try self.pages.pdfObj());
         try self.addObj(try self.catalog.pdfObj());
@@ -571,6 +708,44 @@ pub const Document = struct {
         return self.addFont(stdFnt.string());
     }
 
+    /// Embed a Type1 font program in the document.
+    /// Creates FontFileStream + FontDescriptor + Font objects and wires them together.
+    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData) !FontRef {
+        // 1. Font file stream (raw Type1 bytes)
+        const ff_obj_num = self.objs.items.len + 1;
+        const ff = try FontFileStream.init(self.allocator, ff_obj_num, font_data);
+        try self.addObj(try ff.pdfObj());
+
+        // 2. Font descriptor (metrics + reference to font file stream)
+        const fd_obj_num = self.objs.items.len + 1;
+        const fd = try FontDescriptor.init(self.allocator, fd_obj_num, font_data, ff_obj_num);
+        try self.addObj(try fd.pdfObj());
+
+        // 3. Font dictionary using StandardEncoding as base, matching the byte
+        // values in Transpiler's glyph_map (fi=174, fl=175, quoteleft=96, etc.
+        // are all StandardEncoding positions). The only /Differences needed are
+        // for em-dash (151) and en-dash (150), whose groff byte values come from
+        // Windows-1252 but whose glyph names exist in all Type1 fonts.
+        const font_def = try std.fmt.allocPrint(
+            self.allocator,
+            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>",
+            .{font_data.font_name},
+        );
+        const font_obj_num = self.objs.items.len + 1;
+        const fontNum = self.fonts.items.len;
+        const font = try Font.init(self.allocator, font_obj_num, fontNum, font_def);
+        font.font_descriptor_obj_num = fd_obj_num;
+        try self.addObj(try font.pdfObj());
+        try self.fonts.append(font);
+        try self.font_file_streams.append(ff);
+
+        const result = FontRef{ .idx = fontNum };
+        log.dbg("pdf: embedded font {s} as {f} (ff={d} fd={d} font={d})\n", .{
+            font_data.font_name, result, ff_obj_num, fd_obj_num, font_obj_num,
+        });
+        return result;
+    }
+
     /// add a font to the document by specifing its name returns the index of
     /// the font into our internal font list
     pub fn addFont(self: *Document, f: String) !FontRef {
@@ -579,22 +754,32 @@ pub const Document = struct {
         const font = try Font.init(self.allocator, objIdx, self.fonts.items.len, f);
         try self.addObj(try font.pdfObj());
         try self.fonts.append(font);
+        try self.font_file_streams.append(null);
         const result = FontRef{ .idx = fontNum };
         log.dbg("pdf: added font as {f} with idx {d}:\n{s}\n", .{ result, objIdx, f });
         return result;
     }
 
+    /// Returns the FontFileStream for an embedded font, or null for standard fonts.
+    pub fn getFontFileStream(self: *Document, font_idx: usize) ?*FontFileStream {
+        if (font_idx >= self.font_file_streams.items.len) return null;
+        return self.font_file_streams.items[font_idx];
+    }
+
     /// once a font was added to the document, use this to add a reference to a page
     pub fn addFontRefTo(self: *Document, page: *Page, doc_font_ref: Document.FontRef) !Page.FontRef {
         const font = self.fonts.items[doc_font_ref.idx];
-        if (doc_font_ref.idx >= page.resources.items.len) {
-            log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
-            try page.resources.append(font.objNum);
-            return Page.FontRef{ .idx = page.resources.items.len - 1 };
-        } else {
-            log.dbg("pdf: assuming already seen {f}. not adding to page {d}...\n", .{ doc_font_ref, page.objNum });
-            return Page.FontRef{ .idx = doc_font_ref.idx };
+        // Search for the font already registered on this page by object number.
+        for (page.resources.items, 0..) |objNum, i| {
+            if (objNum == font.objNum) {
+                log.dbg("pdf: assuming already seen {f}. not adding to page {d}...\n", .{ doc_font_ref, page.objNum });
+                return Page.FontRef{ .idx = i };
+            }
         }
+        // Not found on this page — register it.
+        log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
+        try page.resources.append(font.objNum);
+        return Page.FontRef{ .idx = page.resources.items.len - 1 };
     }
 
     /// add a new and empty page to the document and return a pointer to it
@@ -611,7 +796,7 @@ pub const Document = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) std.Io.Writer.Error!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         var byteCount: usize = 0;
         var objIndices = ArrayList(usize).init(self.allocator);
 
@@ -622,7 +807,10 @@ pub const Document = struct {
         // objects
         for (self.objs.items) |obj| {
             try objIndices.append(byteCount);
-            const objBytes = try std.fmt.allocPrint(self.allocator, "{f}", .{obj});
+            var aw = try std.Io.Writer.Allocating.initCapacity(self.allocator, 256);
+            defer aw.deinit();
+            try obj.format(&aw.writer);
+            const objBytes = try aw.toOwnedSlice();
             const objStr = try std.fmt.allocPrint(self.allocator,
                 \\{d} 0 obj
                 \\{s}endobj
@@ -657,3 +845,54 @@ pub const Document = struct {
         , .{ self.catalog.objNum, self.objs.items.len + 1, startXRef });
     }
 };
+
+const expect = std.testing.expect;
+
+test "xref offsets match actual object positions" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var doc = try Document.init(allocator);
+
+    // format the document into a buffer
+    var buf: [4096]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buf);
+    try doc.format(&writer);
+    try writer.flush();
+    const output = buf[0..writer.end];
+
+    // find the xref table
+    const xref_pos = std.mem.indexOf(u8, output, "xref\n") orelse return error.XrefNotFound;
+
+    // parse object count from "0 <count>\n"
+    const count_line_start = xref_pos + "xref\n".len;
+    const count_line_end = std.mem.indexOfPos(u8, output, count_line_start, "\n") orelse return error.ParseError;
+    const count_line = output[count_line_start..count_line_end];
+
+    // parse "0 <n>" to get n
+    var it = std.mem.splitScalar(u8, count_line, ' ');
+    _ = it.next(); // skip "0"
+    const n = try std.fmt.parseInt(usize, it.next() orelse return error.ParseError, 10);
+
+    // skip the free entry, then check each "in use" entry
+    var pos = count_line_end + 1; // after count line
+    pos = (std.mem.indexOfPos(u8, output, pos, "\n") orelse return error.ParseError) + 1; // skip free entry
+
+    // verify each xref offset points to "<objnum> 0 obj\n"
+    for (1..n) |obj_idx| {
+        const line_end = std.mem.indexOfPos(u8, output, pos, "\n") orelse return error.ParseError;
+        const offset = try std.fmt.parseInt(usize, output[pos .. pos + 10], 10);
+
+        const expected_prefix = try std.fmt.allocPrint(
+            allocator,
+            "{d} 0 obj\n",
+            .{obj_idx},
+        );
+
+        const actual = output[offset..@min(offset + expected_prefix.len, output.len)];
+        try expect(std.mem.eql(u8, actual, expected_prefix));
+
+        pos = line_end + 1; // next entry
+    }
+}
