@@ -7,6 +7,7 @@ const std = @import("std");
 const pdf = @import("pdf.zig");
 const groff = @import("groff.zig");
 const log = @import("log.zig");
+const build_options = @import("build_options");
 const String = []const u8;
 const Allocator = std.mem.Allocator;
 const Transpiler = @import("Transpiler.zig");
@@ -26,6 +27,9 @@ pub fn main() !u8 {
                 log.is_debug = true;
             } else if (std.mem.eql(u8, arg, "-w")) {
                 log.is_warn = true;
+            } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
+                std.debug.print("gropdf-zig {s}\n", .{build_options.version});
+                return 0;
             } else if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
                 std.debug.print(
                     \\gropdf-zig: groff PDF output device
@@ -34,9 +38,10 @@ pub fn main() !u8 {
                     \\  groff -Z ... | gropdf-zig [options] > out.pdf
                     \\
                     \\Options:
-                    \\  -d          Enable debug output (written to stderr)
-                    \\  -w          Enable warning output (written to stderr)
-                    \\  -h, --help  Show this help message and exit
+                    \\  -d              Enable debug output (written to stderr)
+                    \\  -w              Enable warning output (written to stderr)
+                    \\  -v, --version   Print version and exit
+                    \\  -h, --help      Show this help message and exit
                     \\
                 , .{});
                 return 0;

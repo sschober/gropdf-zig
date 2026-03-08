@@ -32,6 +32,9 @@ pub fn build(b: *std.Build) void {
         .name = "gropdf_zig",
         .root_module = exe_mod,
     });
+    const version_opt = b.addOptions();
+    version_opt.addOption([]const u8, "version", "0.0.0");
+    exe_mod.addOptions("build_options", version_opt);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
