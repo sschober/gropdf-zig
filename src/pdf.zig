@@ -7,11 +7,23 @@ const std = @import("std");
 const FixPoint = @import("FixPoint.zig");
 const log = @import("log.zig");
 const common = @import("common.zig");
+const zlib = @cImport(@cInclude("zlib.h"));
 
 /// alias to shorten usages below
 const Allocator = std.mem.Allocator;
 const String = []const u8;
 const ArrayList = std.array_list.Managed;
+
+/// Compress `data` with zlib (FlateDecode) using system libz.
+fn zlibCompress(allocator: Allocator, data: []const u8) ![]u8 {
+    const bound = zlib.compressBound(@intCast(data.len));
+    const buf = try allocator.alloc(u8, @intCast(bound));
+    errdefer allocator.free(buf);
+    var dest_len: zlib.uLongf = @intCast(bound);
+    const ret = zlib.compress2(buf.ptr, &dest_len, data.ptr, @intCast(data.len), 6);
+    if (ret != zlib.Z_OK) return error.CompressionFailed;
+    return allocator.realloc(buf, @intCast(dest_len));
+}
 
 // TODO read unitscale from device DESC file
 /// device dependent scaling factor for measures like page dimensions and font
@@ -356,19 +368,27 @@ pub const Stream = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || error{OutOfMemory})!void {
-        // pre-render content to measure its byte length for the /Length field
-        const stream = try std.fmt.allocPrint(self.allocator,
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
+        // pre-render content, then compress
+        const plain = try std.fmt.allocPrint(self.allocator,
             "{f}\n{f}", .{ self.graphicalObject, self.textObject });
+        defer self.allocator.free(plain);
+        const compressed = try zlibCompress(self.allocator, plain);
+        defer self.allocator.free(compressed);
         try writer.print(
             \\<<
+            \\/Filter /FlateDecode
             \\/Length {d}
             \\>>
             \\stream
-            \\{s}
+            \\
+        , .{compressed.len});
+        try writer.writeAll(compressed);
+        try writer.print(
+            \\
             \\endstream
             \\
-        , .{ stream.len, stream });
+        , .{});
     }
     pub fn pdfObj(self: *Stream) !*Object {
         const res = try self.allocator.create(Object);
@@ -431,12 +451,15 @@ pub const FontFileStream = struct {
         return res;
     }
 
-    pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    pub fn format(self: @This(), writer: *std.Io.Writer) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
+        const compressed = try zlibCompress(self.allocator, self.data);
+        defer self.allocator.free(compressed);
         try writer.print(
-            "<<\n/Length {d}\n/Length1 {d}\n/Length2 {d}\n/Length3 {d}\n>>\nstream\n",
-            .{ self.data.len, self.length1, self.length2, self.length3 },
+            "<<\n/Filter /FlateDecode\n/Length {d}\n/Length1 {d}\n/Length2 {d}\n/Length3 {d}\n>>\nstream\n",
+            .{ compressed.len, self.length1, self.length2, self.length3 },
         );
-        try writer.print("{s}\nendstream\n", .{self.data});
+        try writer.writeAll(compressed);
+        try writer.print("\nendstream\n", .{});
     }
 
     pub fn pdfObj(self: *FontFileStream) !*Object {
@@ -554,7 +577,7 @@ pub const Page = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || error{OutOfMemory})!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         try writer.print(
             \\<<
             \\/Type /Page
@@ -623,7 +646,7 @@ pub const Object = union(enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || error{OutOfMemory})!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         switch (self) {
             inline else => |impl| return impl.format(writer),
         }
@@ -770,7 +793,7 @@ pub const Document = struct {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) (std.Io.Writer.Error || error{OutOfMemory})!void {
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
         var byteCount: usize = 0;
         var objIndices = ArrayList(usize).init(self.allocator);
 
