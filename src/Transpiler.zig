@@ -100,16 +100,17 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
     } else {
         // this is a new font, we did not see up until now...
         if (self.doc) |*doc| {
-            // Try to embed the physical font first; fall back to standard font reference.
-            if (try groff.findAndLoadFont(self.allocator, grout_font_ref.name)) |font_data| {
+            // Prefer standard PDF font references (no embedding needed); only embed
+            // when there is no standard equivalent for this groff font name.
+            if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
+                doc_font_ref = try doc.addStandardFont(pdf_std_font);
+            } else if (try groff.findAndLoadFont(self.allocator, grout_font_ref.name)) |font_data| {
                 log.dbg("{d}: embedding Type1 font {s} for groff font {s}\n", .{
                     self.cur_line_num, font_data.font_name, grout_font_ref.name,
                 });
                 doc_font_ref = try doc.addEmbeddedFont(font_data);
                 try self.used_chars.put(doc_font_ref.idx, .{false} ** 256);
                 try self.embedded_font_data.put(doc_font_ref.idx, font_data);
-            } else if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
-                doc_font_ref = try doc.addStandardFont(pdf_std_font);
             } else {
                 log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
                 return;
