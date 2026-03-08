@@ -6,6 +6,7 @@
 const std = @import("std");
 const FixPoint = @import("FixPoint.zig");
 const log = @import("log.zig");
+const common = @import("common.zig");
 
 /// alias to shorten usages below
 const Allocator = std.mem.Allocator;
@@ -384,6 +385,8 @@ pub const Font = struct {
     /// fonts are numbered in a document; the numbers are managed and assign in Document
     fontNum: usize,
     fontDef: String,
+    /// when set, a /FontDescriptor entry is added pointing to an embedded font descriptor
+    font_descriptor_obj_num: ?usize = null,
     pub fn init(allocator: Allocator, n: usize, l: usize, f: String) !*Font {
         const res = try allocator.create(Font);
         res.* = Font{ .allocator = allocator, .objNum = n, .fontNum = l, .fontDef = f };
@@ -393,17 +396,120 @@ pub const Font = struct {
         self: @This(),
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
-        try writer.print(
-            \\<<
-            \\/Type /Font
-            \\{s}
-            \\>>
-            \\
-        , .{self.fontDef});
+        try writer.print("<<\n/Type /Font\n{s}\n", .{self.fontDef});
+        if (self.font_descriptor_obj_num) |desc_num| {
+            try writer.print("/FontDescriptor {d} 0 R\n", .{desc_num});
+        }
+        try writer.print(">>\n", .{});
     }
     pub fn pdfObj(self: *Font) !*Object {
         const res = try self.allocator.create(Object);
         res.* = Object{ .font = self };
+        return res;
+    }
+};
+
+/// Holds the raw bytes of an embedded Type1 font program as a PDF stream object.
+pub const FontFileStream = struct {
+    allocator: Allocator,
+    objNum: usize,
+    data: []const u8,
+    length1: usize,
+    length2: usize,
+    length3: usize,
+
+    pub fn init(allocator: Allocator, n: usize, font_data: common.Type1FontData) !*FontFileStream {
+        const res = try allocator.create(FontFileStream);
+        res.* = .{
+            .allocator = allocator,
+            .objNum = n,
+            .data = font_data.data,
+            .length1 = font_data.length1,
+            .length2 = font_data.length2,
+            .length3 = font_data.length3,
+        };
+        return res;
+    }
+
+    pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print(
+            "<<\n/Length {d}\n/Length1 {d}\n/Length2 {d}\n/Length3 {d}\n>>\nstream\n",
+            .{ self.data.len, self.length1, self.length2, self.length3 },
+        );
+        try writer.print("{s}\nendstream\n", .{self.data});
+    }
+
+    pub fn pdfObj(self: *FontFileStream) !*Object {
+        const res = try self.allocator.create(Object);
+        res.* = Object{ .font_file_stream = self };
+        return res;
+    }
+};
+
+/// PDF FontDescriptor object — font metrics and reference to the embedded font file.
+pub const FontDescriptor = struct {
+    allocator: Allocator,
+    objNum: usize,
+    font_name: String,
+    font_bbox: [4]i64,
+    flags: u32,
+    italic_angle: i64,
+    ascent: i64,
+    descent: i64,
+    cap_height: i64,
+    stem_v: i64,
+    font_file_obj_num: usize,
+
+    pub fn init(allocator: Allocator, n: usize, font_data: common.Type1FontData, ff_obj_num: usize) !*FontDescriptor {
+        const res = try allocator.create(FontDescriptor);
+        const bbox = font_data.font_bbox;
+        res.* = .{
+            .allocator = allocator,
+            .objNum = n,
+            .font_name = font_data.font_name,
+            .font_bbox = bbox,
+            .flags = font_data.flags,
+            .italic_angle = font_data.italic_angle,
+            .ascent = if (bbox[3] > 0) bbox[3] else 700,
+            .descent = if (bbox[1] < 0) bbox[1] else -200,
+            .cap_height = if (bbox[3] > 0) @divTrunc(bbox[3] * 7, 10) else 680,
+            .stem_v = if (font_data.flags & 1 != 0) 100 else 80, // heavier stem for monospace
+            .font_file_obj_num = ff_obj_num,
+        };
+        return res;
+    }
+
+    pub fn format(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print(
+            \\<<
+            \\/Type /FontDescriptor
+            \\/FontName /{s}
+            \\/Flags {d}
+            \\/FontBBox [{d} {d} {d} {d}]
+            \\/ItalicAngle {d}
+            \\/Ascent {d}
+            \\/Descent {d}
+            \\/CapHeight {d}
+            \\/StemV {d}
+            \\/FontFile {d} 0 R
+            \\>>
+            \\
+        , .{
+            self.font_name,
+            self.flags,
+            self.font_bbox[0], self.font_bbox[1], self.font_bbox[2], self.font_bbox[3],
+            self.italic_angle,
+            self.ascent,
+            self.descent,
+            self.cap_height,
+            self.stem_v,
+            self.font_file_obj_num,
+        });
+    }
+
+    pub fn pdfObj(self: *FontDescriptor) !*Object {
+        const res = try self.allocator.create(Object);
+        res.* = Object{ .font_descriptor = self };
         return res;
     }
 };
@@ -511,6 +617,8 @@ pub const Object = union(enum) {
     catalog: *Catalog,
     font: *Font,
     stream: *Stream,
+    font_file_stream: *FontFileStream,
+    font_descriptor: *FontDescriptor,
 
     pub fn format(
         self: @This(),
@@ -569,6 +677,43 @@ pub const Document = struct {
     /// returns the font number
     pub fn addStandardFont(self: *Document, stdFnt: StandardFonts) !FontRef {
         return self.addFont(stdFnt.string());
+    }
+
+    /// Embed a Type1 font program in the document.
+    /// Creates FontFileStream + FontDescriptor + Font objects and wires them together.
+    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData) !FontRef {
+        // 1. Font file stream (raw Type1 bytes)
+        const ff_obj_num = self.objs.items.len + 1;
+        const ff = try FontFileStream.init(self.allocator, ff_obj_num, font_data);
+        try self.addObj(try ff.pdfObj());
+
+        // 2. Font descriptor (metrics + reference to font file stream)
+        const fd_obj_num = self.objs.items.len + 1;
+        const fd = try FontDescriptor.init(self.allocator, fd_obj_num, font_data, ff_obj_num);
+        try self.addObj(try fd.pdfObj());
+
+        // 3. Font dictionary using StandardEncoding as base, matching the byte
+        // values in Transpiler's glyph_map (fi=174, fl=175, quoteleft=96, etc.
+        // are all StandardEncoding positions). The only /Differences needed are
+        // for em-dash (151) and en-dash (150), whose groff byte values come from
+        // Windows-1252 but whose glyph names exist in all Type1 fonts.
+        const font_def = try std.fmt.allocPrint(
+            self.allocator,
+            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>",
+            .{font_data.font_name},
+        );
+        const font_obj_num = self.objs.items.len + 1;
+        const fontNum = self.fonts.items.len;
+        const font = try Font.init(self.allocator, font_obj_num, fontNum, font_def);
+        font.font_descriptor_obj_num = fd_obj_num;
+        try self.addObj(try font.pdfObj());
+        try self.fonts.append(font);
+
+        const result = FontRef{ .idx = fontNum };
+        log.dbg("pdf: embedded font {s} as {f} (ff={d} fd={d} font={d})\n", .{
+            font_data.font_name, result, ff_obj_num, fd_obj_num, font_obj_num,
+        });
+        return result;
     }
 
     /// add a font to the document by specifing its name returns the index of

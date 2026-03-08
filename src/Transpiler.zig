@@ -93,7 +93,13 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
     } else {
         // this is a new font, we did not see up until now...
         if (self.doc) |*doc| {
-            if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
+            // Try to embed the physical font first; fall back to standard font reference.
+            if (try groff.findAndLoadFont(self.allocator, grout_font_ref.name)) |font_data| {
+                log.dbg("{d}: embedding Type1 font {s} for groff font {s}\n", .{
+                    self.cur_line_num, font_data.font_name, grout_font_ref.name,
+                });
+                doc_font_ref = try doc.addEmbeddedFont(font_data);
+            } else if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
                 doc_font_ref = try doc.addStandardFont(pdf_std_font);
             } else {
                 log.warn("warning: unsupported font: {s}\n", .{grout_font_ref.name});
@@ -253,10 +259,10 @@ const glyph_map = std.StaticStringMap(u8).initComptime(.{
     .{ "em", 151 },   // em-dash
     .{ "en", 150 },   // en-dash
     // quotes
-    .{ "lq", 141 },   // left double quote
-    .{ "rq", 142 },   // right double quote
-    .{ "cq", 0o251 }, // close quote (right single)
-    .{ "oq", 0o140 }, // open quote (left single)
+    .{ "lq", 170 },   // left double quote = quotedblleft in StandardEncoding
+    .{ "rq", 186 },   // right double quote = quotedblright in StandardEncoding
+    .{ "cq", 169 },   // close quote (right single) = quotesingle in StandardEncoding
+    .{ "oq", 96 },    // open quote (left single) = quoteleft in StandardEncoding
     .{ "dq", 34 },    // double quote
     .{ "aq", 39 },    // apostrophe
     // punctuation and symbols
