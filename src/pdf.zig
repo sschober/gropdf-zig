@@ -317,6 +317,34 @@ pub const TextObject = struct {
         }
         self.e = self.e.addTo(word_length);
     }
+    /// add a word with inter-character tracking using a PDF TJ array.
+    /// tracking_units is in basic device units (same as h-command values),
+    /// added after every character including the last (per groff `u N word` semantics).
+    pub fn addWordWithTracking(self: *TextObject, s: String, glyph_widths: [257]usize, font_size: usize, tracking_units: usize) !void {
+        if (s.len == 0) return;
+        // Flush any pending untracked text before the TJ block
+        try self.newLine();
+        // In a PDF TJ array, a number n shifts the current text position by
+        // -n * font_size/1000 user-space units. We want tracking_units/1000 pts of
+        // advance after each glyph, so: kern = -tracking_units / font_size.
+        const kern: i64 = @divTrunc(-@as(i64, @intCast(tracking_units)), @as(i64, @intCast(font_size)));
+        var buf = std.array_list.Managed(u8).init(self.allocator);
+        var word_length = FixPoint{};
+        try buf.append('[');
+        for (s) |c| {
+            try buf.append('(');
+            switch (c) {
+                '(', ')', '\\' => { try buf.append('\\'); try buf.append(c); },
+                else => try buf.append(c),
+            }
+            try buf.writer().print(") {d} ", .{kern});
+            word_length = word_length.addTo(FixPoint.from(glyph_widths[c] * font_size, UNITSCALE));
+            word_length = word_length.addTo(FixPoint.from(tracking_units, UNITSCALE));
+        }
+        try buf.appendSlice("] TJ");
+        try self.lines.append(try buf.toOwnedSlice());
+        self.e = self.e.addTo(word_length);
+    }
     /// add a word to the current text object, but do not increase the internal
     /// x coordinate. this is handy for C commands, which are always followed
     /// by `w h` commands with enough space increment.
@@ -710,7 +738,9 @@ pub const Document = struct {
 
     /// Embed a Type1 font program in the document.
     /// Creates FontFileStream + FontDescriptor + Font objects and wires them together.
-    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData) !FontRef {
+    /// encoding_diffs: optional PDF /Differences array string (e.g. "[164 /currency ...]")
+    /// built from the font's charset; if null, falls back to the minimal default.
+    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData, encoding_diffs: ?[]const u8) !FontRef {
         // 1. Font file stream (raw Type1 bytes)
         const ff_obj_num = self.objs.items.len + 1;
         const ff = try FontFileStream.init(self.allocator, ff_obj_num, font_data);
@@ -721,15 +751,13 @@ pub const Document = struct {
         const fd = try FontDescriptor.init(self.allocator, fd_obj_num, font_data, ff_obj_num);
         try self.addObj(try fd.pdfObj());
 
-        // 3. Font dictionary using StandardEncoding as base, matching the byte
-        // values in Transpiler's glyph_map (fi=174, fl=175, quoteleft=96, etc.
-        // are all StandardEncoding positions). The only /Differences needed are
-        // for em-dash (151) and en-dash (150), whose groff byte values come from
-        // Windows-1252 but whose glyph names exist in all Type1 fonts.
+        // 3. Font dictionary — use the font's own encoding if available, otherwise
+        // fall back to StandardEncoding with just endash/emdash differences.
+        const diffs = encoding_diffs orelse "[150 /endash /emdash]";
         const font_def = try std.fmt.allocPrint(
             self.allocator,
-            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>",
-            .{font_data.font_name},
+            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>",
+            .{ font_data.font_name, diffs },
         );
         const font_obj_num = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
@@ -744,6 +772,39 @@ pub const Document = struct {
             font_data.font_name, result, ff_obj_num, fd_obj_num, font_obj_num,
         });
         return result;
+    }
+
+    /// Add a new Font dictionary that re-encodes an existing embedded font.
+    /// Shares the FontDescriptor (and therefore the font file stream) with
+    /// `primary`.  Use `setFontEncoding` before output to fill in the real
+    /// /Differences array once all glyphs have been assigned.
+    pub fn addReEncodedFont(self: *Document, primary: FontRef, font_name: []const u8) !FontRef {
+        const primary_font = self.fonts.items[primary.idx];
+        const fd_obj_num = primary_font.font_descriptor_obj_num orelse return error.NotAnEmbeddedFont;
+        const fontNum = self.fonts.items.len;
+        const font_obj_num = self.objs.items.len + 1;
+        const font_def = try std.fmt.allocPrint(
+            self.allocator,
+            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [0 /notdef] >>",
+            .{font_name},
+        );
+        const font = try Font.init(self.allocator, font_obj_num, fontNum, font_def);
+        font.font_descriptor_obj_num = fd_obj_num;
+        try self.addObj(try font.pdfObj());
+        try self.fonts.append(font);
+        try self.font_file_streams.append(null);
+        return FontRef{ .idx = fontNum };
+    }
+
+    /// Replace the /Differences encoding in a font's fontDef.  Called just
+    /// before `format` to finalise overflow re-encoding font dictionaries.
+    pub fn setFontEncoding(self: *Document, ref: FontRef, font_name: []const u8, encoding_diffs: []const u8) !void {
+        const font = self.fonts.items[ref.idx];
+        font.fontDef = try std.fmt.allocPrint(
+            self.allocator,
+            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>",
+            .{ font_name, encoding_diffs },
+        );
     }
 
     /// add a font to the document by specifing its name returns the index of

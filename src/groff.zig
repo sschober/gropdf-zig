@@ -7,6 +7,12 @@ const String = common.String;
 /// a glyph map maps indices corresponding to ascii codes to glyph widths. each
 /// font has its separate map
 pub const GlyphMap = [257]usize;
+/// maps glyph names (e.g. "fi", "~A") to their byte code (0-255),
+/// built from the charset section of a groff font descriptor file.
+pub const GlyphNameMap = std.StringHashMap(u8);
+/// maps groff glyph names to their PostScript names for code > 255 glyphs
+/// (i.e. glyphs that have no natural byte slot and need dynamic assignment).
+pub const HighGlyphMap = std.StringHashMap([]const u8);
 const Allocator = std.mem.Allocator;
 /// groff out language elements - all single characters, some take
 pub const Out = enum {
@@ -181,6 +187,180 @@ pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
         }
     }
     return glyph_widths;
+}
+
+/// Parsed entry from a groff font descriptor charset line.
+const CharsetEntry = struct { code: u8, groff_name: String, ps_name: String };
+
+/// Parse one charset line into a CharsetEntry. Returns null for lines with
+/// code -1, code > 255, or that cannot be parsed.
+fn parseCharsetLine(line: String) ?CharsetEntry {
+    var it = std.mem.splitScalar(u8, line, '\t');
+    const groff_name = it.next() orelse return null;
+    _ = it.next() orelse return null; // metrics (may be `"`)
+    _ = it.next() orelse return null; // type
+    const code_str = it.next() orelse return null;
+    const ps_name_raw = it.next() orelse return null;
+    const ps_name = std.mem.trim(u8, ps_name_raw, " \t\r");
+    const code_usize = std.fmt.parseUnsigned(usize, code_str, 10) catch return null;
+    if (code_usize > 255) return null;
+    return .{ .code = @intCast(code_usize), .groff_name = groff_name, .ps_name = ps_name };
+}
+
+/// reads the groff font descriptor file and builds a map from glyph name to
+/// byte code. only entries with code in 0..255 are included. entries with
+/// code -1 or code > 255 are skipped. the caller owns the returned map and
+/// all keys (which are duped into gpa).
+pub fn readGlyphNameMap(gpa: Allocator, font_name: String) !GlyphNameMap {
+    const groff_path = try locateFont(gpa, font_name);
+    defer gpa.free(groff_path);
+    var file = try std.fs.openFileAbsolute(groff_path, .{ .mode = .read_only });
+    defer file.close();
+    var read_buf: [4096]u8 = undefined;
+    var reader = file.reader(&read_buf);
+    var ifc = &reader.interface;
+    var in_charset = false;
+    var map = GlyphNameMap.init(gpa);
+    while (try ifc.takeDelimiter('\n')) |line| {
+        if (!in_charset) {
+            if (std.mem.eql(u8, line, "charset")) in_charset = true;
+            continue;
+        }
+        const entry = parseCharsetLine(line) orelse continue;
+        const key = try gpa.dupe(u8, entry.groff_name);
+        try map.put(key, entry.code);
+    }
+    return map;
+}
+
+/// Combined result of one descriptor read: encoding + name map for code ≤ 255
+/// glyphs, plus a high_glyphs map for code > 255 glyphs that need dynamic slot
+/// assignment via overflow re-encodings.
+pub const FontMaps = struct {
+    encoding: FontEncoding,
+    name_map: GlyphNameMap,
+    /// groff_name → ps_name for code > 255 glyphs (excluding unicode-escape and
+    /// math-symbol names).  Used to populate overflow re-encodings on demand.
+    high_glyphs: HighGlyphMap,
+};
+
+/// Build the per-font encoding (code ≤ 255 glyphs) and the glyph name map from
+/// a single read of the groff font descriptor. Code > 255 glyphs are collected
+/// into `high_glyphs` for on-demand assignment to overflow re-encodings.
+///
+/// Caller owns encoding (free with freeFontEncoding), name_map, and high_glyphs.
+pub fn buildFontMaps(gpa: Allocator, font_name: String) !FontMaps {
+    const groff_path = try locateFont(gpa, font_name);
+    defer gpa.free(groff_path);
+    var file = try std.fs.openFileAbsolute(groff_path, .{ .mode = .read_only });
+    defer file.close();
+    var read_buf: [4096]u8 = undefined;
+    var reader = file.reader(&read_buf);
+    var ifc = &reader.interface;
+    var in_charset = false;
+    var enc: FontEncoding = .{null} ** 256;
+    var name_map = GlyphNameMap.init(gpa);
+    var high_glyphs = HighGlyphMap.init(gpa);
+    while (try ifc.takeDelimiter('\n')) |line| {
+        if (!in_charset) {
+            if (std.mem.eql(u8, line, "charset")) in_charset = true;
+            continue;
+        }
+        var it = std.mem.splitScalar(u8, line, '\t');
+        const groff_name = it.next() orelse continue;
+        if (std.mem.eql(u8, groff_name, "---")) continue;
+        const metrics = it.next() orelse continue;
+        if (std.mem.eql(u8, metrics, "\"")) continue;
+        _ = it.next() orelse continue; // type
+        const code_str = it.next() orelse continue;
+        const ps_name_raw = it.next() orelse continue;
+        const ps_name = std.mem.trim(u8, ps_name_raw, " \t\r");
+        if (ps_name.len == 0) continue;
+        const code_int = std.fmt.parseInt(i64, code_str, 10) catch continue;
+        if (code_int < 0) continue;
+        const code_usize: usize = @intCast(code_int);
+        if (code_usize < 256) {
+            const byte_code: u8 = @intCast(code_usize);
+            if (enc[byte_code] == null) enc[byte_code] = try gpa.dupe(u8, ps_name);
+            if (!name_map.contains(groff_name)) {
+                try name_map.put(try gpa.dupe(u8, groff_name), byte_code);
+            }
+        } else {
+            // Skip unicode-escape names (u0041_0306) and math-symbol names (*A);
+            // they're unlikely to appear in C commands and would crowd out slots.
+            const is_unicode = groff_name.len >= 5 and groff_name[0] == 'u' and
+                std.ascii.isHex(groff_name[1]) and std.ascii.isHex(groff_name[2]) and
+                std.ascii.isHex(groff_name[3]) and std.ascii.isHex(groff_name[4]);
+            const is_math = groff_name.len >= 2 and groff_name[0] == '*';
+            if (is_unicode or is_math) continue;
+            if (!high_glyphs.contains(groff_name)) {
+                try high_glyphs.put(try gpa.dupe(u8, groff_name), try gpa.dupe(u8, ps_name));
+            }
+        }
+    }
+    return .{ .encoding = enc, .name_map = name_map, .high_glyphs = high_glyphs };
+}
+
+/// reads the groff font descriptor charset and returns a PDF /Differences
+/// array string (e.g. "[164 /currency 195 /Atilde ...]") for use in the
+/// font's /Encoding dictionary. covers all code 0-255 entries found.
+/// caller owns the returned string.
+/// Per-font encoding: maps byte code (0-255) to PostScript glyph name.
+/// Entries are heap-allocated; free with `freeFontEncoding`.
+pub const FontEncoding = [256]?[]const u8;
+
+/// Build the per-font encoding array from the groff font descriptor charset.
+/// Caller frees with `freeFontEncoding`.
+pub fn buildFontEncoding(gpa: Allocator, font_name: String) !FontEncoding {
+    const groff_path = try locateFont(gpa, font_name);
+    defer gpa.free(groff_path);
+    var file = try std.fs.openFileAbsolute(groff_path, .{ .mode = .read_only });
+    defer file.close();
+    var read_buf: [4096]u8 = undefined;
+    var reader = file.reader(&read_buf);
+    var ifc = &reader.interface;
+    var in_charset = false;
+    var enc: FontEncoding = .{null} ** 256;
+    while (try ifc.takeDelimiter('\n')) |line| {
+        if (!in_charset) {
+            if (std.mem.eql(u8, line, "charset")) in_charset = true;
+            continue;
+        }
+        const entry = parseCharsetLine(line) orelse continue;
+        if (entry.ps_name.len == 0) continue;
+        if (enc[entry.code] == null) {
+            enc[entry.code] = try gpa.dupe(u8, entry.ps_name);
+        }
+    }
+    return enc;
+}
+
+pub fn freeFontEncoding(gpa: Allocator, enc: FontEncoding) void {
+    for (enc) |maybe_name| {
+        if (maybe_name) |n| gpa.free(n);
+    }
+}
+
+/// Format a FontEncoding as a PDF /Differences array string.
+/// Caller frees the returned slice.
+pub fn fontEncodingToDiffs(gpa: Allocator, enc: FontEncoding) !String {
+    var buf = std.array_list.Managed(u8).init(gpa);
+    try buf.appendSlice("[");
+    var any = false;
+    for (enc, 0..) |maybe_name, code| {
+        const name = maybe_name orelse continue;
+        if (any) try buf.append(' ');
+        try buf.writer().print("{d} /{s}", .{ code, name });
+        any = true;
+    }
+    try buf.appendSlice("]");
+    return buf.toOwnedSlice();
+}
+
+pub fn readFontEncodingDiffs(gpa: Allocator, font_name: String) !String {
+    const enc = try buildFontEncoding(gpa, font_name);
+    defer freeFontEncoding(gpa, enc);
+    return fontEncodingToDiffs(gpa, enc);
 }
 
 /// groff_out(5) font reference
@@ -439,7 +619,7 @@ const differences_encoding: [256]?[]const u8 = build: {
     break :build d;
 };
 
-fn glyphNameForByte(b: u8) ?[]const u8 {
+pub fn glyphNameForByte(b: u8) ?[]const u8 {
     return differences_encoding[b] orelse standard_encoding[b];
 }
 
@@ -536,19 +716,12 @@ fn encryptEexec(gpa: Allocator, plaintext: []const u8) ![]u8 {
     return cipher;
 }
 
-/// Subset a Type1 font to only the glyphs needed for `used_bytes`.
-/// Glyph names are resolved through StandardEncoding plus the /Differences
-/// [150 /endash /emdash] applied by addEmbeddedFont.  Always retains .notdef.
-pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [256]bool) !Type1FontData {
-    // Build the set of needed glyph names.
-    var needed = std.StringHashMap(void).init(gpa);
-    defer needed.deinit();
-    try needed.put(".notdef", {});
-    for (used_bytes, 0..) |used, b| {
-        if (used) {
-            if (glyphNameForByte(@intCast(b))) |name| try needed.put(name, {});
-        }
-    }
+/// Subset a Type1 font to only the glyphs in `needed_names`.
+/// The caller is responsible for building the set from all encodings (primary
+/// and any overflow re-encodings) that share this font's font file stream.
+/// Always retains .notdef even if not in `needed_names`.
+pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: std.StringHashMap(void)) !Type1FontData {
+    var needed = needed_names;
 
     // Decrypt eexec section and skip the 4-byte random seed.
     const encrypted = font_data.data[font_data.length1 .. font_data.length1 + font_data.length2];
