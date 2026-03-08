@@ -1,5 +1,6 @@
 .zig-cache/
 zig-out/
+zig-out-rel/
 *.o
 dev-out.pdf
 dev-orig.pdf

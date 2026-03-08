@@ -93,24 +93,25 @@ for a full explanation of font selection, subsetting, and compression.
 
 ## Performance
 
-Currently, the performance looks promising:
+Run `./bench.sh [runs]` to reproduce the timings on your machine (default 50
+runs, both debug and release builds are compiled automatically):
 
 ```bash
-$ termgraph measures.lst
-
-gropdf.pl     : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 185.00
-gropdf_zig    : ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ 101.00
-gropdf_zig_rel: ▇▇ 9.00
+$ ./bench.sh 30
+gropdf (perl)…           123 ms
+gropdf.zig (debug)…       29 ms
+gropdf.zig (release)…     24 ms
 ```
 
-Seems like a factor of `2` quicker for debug builds and a factor of about `20`
-for release builds!
+That is roughly a **4× speedup** over the Perl implementation, even for the
+debug build.  The debug/release gap is narrower than in earlier versions
+because zlib compression (done via system libz) now dominates the hot path —
+an already-optimised C library that debug symbols don't slow down.
 
-The release binary is only `42k` on linux, which I find quite impressive:
+The release binary is `209k` on macOS (Apple Silicon):
 
 ```bash
-$ ls zig-out/bin/
-Permissions Size User Date Modified Name
-.rwxr-xr-x   42k sven 25 Oct 16:57  󰡯 gropdf_zig
+$ ls -lh zig-out-rel/bin/gropdf_zig
+-rwxr-xr-x  209k gropdf_zig
 ```
 
