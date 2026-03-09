@@ -716,7 +716,225 @@ fn encryptEexec(gpa: Allocator, plaintext: []const u8) ![]u8 {
     return cipher;
 }
 
+// ---- Type1 charstring helpers (cipher key 4330) ----
+
+/// Parse a Type1 charstring integer at position `pos`.
+/// Returns the value and the number of bytes consumed.
+fn parseType1Int(cs: []const u8, pos: usize) struct { val: i32, size: usize } {
+    const b1 = cs[pos];
+    if (b1 >= 32 and b1 <= 246) return .{ .val = @as(i32, b1) - 139, .size = 1 };
+    if (b1 >= 247 and b1 <= 250) return .{
+        .val = (@as(i32, b1) - 247) * 256 + @as(i32, cs[pos + 1]) + 108,
+        .size = 2,
+    };
+    if (b1 >= 251 and b1 <= 254) return .{
+        .val = -(@as(i32, b1) - 251) * 256 - @as(i32, cs[pos + 1]) - 108,
+        .size = 2,
+    };
+    // b1 == 255: big-endian signed 32-bit integer
+    const v: i32 = (@as(i32, cs[pos + 1]) << 24) | (@as(i32, cs[pos + 2]) << 16) |
+        (@as(i32, cs[pos + 3]) << 8) | @as(i32, cs[pos + 4]);
+    return .{ .val = v, .size = 5 };
+}
+
+/// Append an encoded Type1 charstring integer to `buf`.
+fn appendType1Int(buf: *std.array_list.Managed(u8), n: i32) !void {
+    if (n >= -107 and n <= 107) {
+        try buf.append(@intCast(n + 139));
+    } else if (n >= 108 and n <= 1131) {
+        const v: i32 = n - 108;
+        try buf.append(@intCast(@divTrunc(v, 256) + 247));
+        try buf.append(@intCast(@mod(v, 256)));
+    } else if (n >= -1131 and n <= -108) {
+        const v: i32 = -n - 108;
+        try buf.append(@intCast(@divTrunc(v, 256) + 251));
+        try buf.append(@intCast(@mod(v, 256)));
+    } else {
+        try buf.append(255);
+        try buf.append(@intCast((n >> 24) & 0xff));
+        try buf.append(@intCast((n >> 16) & 0xff));
+        try buf.append(@intCast((n >> 8) & 0xff));
+        try buf.append(@intCast(n & 0xff));
+    }
+}
+
+/// Decrypt a Type1 charstring (cipher key 4330, skip first `len_iv` seed bytes).
+fn decryptCharstring(gpa: Allocator, cs: []const u8, len_iv: usize) ![]u8 {
+    if (cs.len < len_iv) return error.InvalidCharstring;
+    var r: u16 = 4330;
+    const c1: u32 = 52845;
+    const c2: u32 = 22719;
+    const plain = try gpa.alloc(u8, cs.len - len_iv);
+    for (cs, 0..) |c, i| {
+        const p: u8 = c ^ @as(u8, @truncate(r >> 8));
+        r = @truncate((@as(u32, c) +% @as(u32, r)) *% c1 +% c2);
+        if (i >= len_iv) plain[i - len_iv] = p;
+    }
+    return plain;
+}
+
+/// Encrypt a Type1 charstring (cipher key 4330, prepend `len_iv` seed bytes).
+fn encryptCharstring(gpa: Allocator, plain: []const u8, len_iv: usize) ![]u8 {
+    const output = try gpa.alloc(u8, len_iv + plain.len);
+    var r: u16 = 4330;
+    const c1: u32 = 52845;
+    const c2: u32 = 22719;
+    const seed = [_]u8{ 0x44, 0x65, 0x72, 0x69 }; // "Deri"
+    for (0..len_iv) |i| {
+        const p = seed[i % seed.len];
+        const c: u8 = p ^ @as(u8, @truncate(r >> 8));
+        output[i] = c;
+        r = @truncate((@as(u32, c) +% @as(u32, r)) *% c1 +% c2);
+    }
+    for (plain, 0..) |p, i| {
+        const c: u8 = p ^ @as(u8, @truncate(r >> 8));
+        output[len_iv + i] = c;
+        r = @truncate((@as(u32, c) +% @as(u32, r)) *% c1 +% c2);
+    }
+    return output;
+}
+
+const TraceError = std.mem.Allocator.Error || error{InvalidCharstring};
+
+/// Mark a subr as needed and recursively trace its callsubr dependencies.
+fn markSubrNeeded(
+    gpa: Allocator,
+    idx: i32,
+    subr_data: []const ?[]const u8,
+    len_iv: usize,
+    needed_subrs: *std.AutoHashMap(usize, void),
+) TraceError!void {
+    if (idx < 0) return;
+    const uidx: usize = @intCast(idx);
+    if (uidx >= subr_data.len or needed_subrs.contains(uidx)) return;
+    try needed_subrs.put(uidx, {});
+    if (subr_data[uidx]) |enc| {
+        const plain_sub = try decryptCharstring(gpa, enc, len_iv);
+        defer gpa.free(plain_sub);
+        try traceSubrs(gpa, plain_sub, subr_data, len_iv, needed_subrs);
+    }
+}
+
+/// Trace `callsubr` (opcode 10) dependencies in a decrypted charstring.
+/// Marks needed Subr indices in `needed_subrs` and recursively traces each.
+/// Tracks two integers (prev_int, last_int) to detect the Type1 hint replacement
+/// pattern `hint_subr 4 callsubr`, where subr 4 dispatches to hint_subr via
+/// OtherSubrs[3]. gropdf.pl applies the same heuristic.
+fn traceSubrs(
+    gpa: Allocator,
+    plain_cs: []const u8,
+    subr_data: []const ?[]const u8,
+    len_iv: usize,
+    needed_subrs: *std.AutoHashMap(usize, void),
+) TraceError!void {
+    var pos: usize = 0;
+    var last_int: ?i32 = null;
+    var prev_int: ?i32 = null;
+    while (pos < plain_cs.len) {
+        const b = plain_cs[pos];
+        if (b >= 32) {
+            // Shift the two-element integer buffer.
+            prev_int = last_int;
+            const r = parseType1Int(plain_cs, pos);
+            last_int = r.val;
+            pos += r.size;
+        } else {
+            switch (b) {
+                10 => { // callsubr
+                    if (last_int) |idx| {
+                        try markSubrNeeded(gpa, idx, subr_data, len_iv, needed_subrs);
+                        // Subr 4 is the standard Type1 hint-replacement dispatcher:
+                        // `hint_subr 4 callsubr` → subr 4 calls hint_subr via OtherSubrs[3].
+                        // prev_int holds hint_subr, which must also be traced.
+                        if (idx == 4) {
+                            if (prev_int) |prev| try markSubrNeeded(gpa, prev, subr_data, len_iv, needed_subrs);
+                        }
+                    }
+                    last_int = null;
+                    prev_int = null;
+                    pos += 1;
+                },
+                12 => { last_int = null; prev_int = null; pos += 2; },
+                else => { last_int = null; prev_int = null; pos += 1; },
+            }
+        }
+    }
+}
+
+/// Rewrite `callsubr` operands in a decrypted charstring using `old_to_new` mapping.
+/// Returns a newly-allocated rewritten charstring (caller must free).
+/// Tracks two integers (prev_int, last_int) to handle the hint-replacement pattern
+/// `hint_subr 4 callsubr`: both hint_subr and 4 are subr indices that must be remapped.
+fn rewriteCallsubr(
+    gpa: Allocator,
+    plain_cs: []const u8,
+    old_to_new: std.AutoHashMap(usize, usize),
+) ![]u8 {
+    var out = std.array_list.Managed(u8).init(gpa);
+    var pos: usize = 0;
+    var last_int: ?i32 = null;
+    var prev_int: ?i32 = null;
+
+    const remapInt = struct {
+        fn call(v: i32, m: std.AutoHashMap(usize, usize)) i32 {
+            if (v < 0) return v;
+            const u: usize = @intCast(v);
+            return @intCast(m.get(u) orelse u);
+        }
+    }.call;
+
+    while (pos < plain_cs.len) {
+        const b = plain_cs[pos];
+        if (b >= 32) {
+            // Shift two-element buffer: flush oldest (prev_int) when buffer is full.
+            if (prev_int) |v| try appendType1Int(&out, v);
+            prev_int = last_int;
+            const r = parseType1Int(plain_cs, pos);
+            last_int = r.val;
+            pos += r.size;
+        } else {
+            switch (b) {
+                10 => { // callsubr: remap last_int; also remap prev_int for subr-4 dispatch
+                    if (last_int) |old_idx| {
+                        if (old_idx == 4) {
+                            // Hint-replacement pattern: prev_int is the hint subr → remap it too.
+                            if (prev_int) |prev| try appendType1Int(&out, remapInt(prev, old_to_new));
+                        } else {
+                            if (prev_int) |v| try appendType1Int(&out, v); // flush literally
+                        }
+                        try appendType1Int(&out, remapInt(old_idx, old_to_new));
+                    } else {
+                        if (prev_int) |v| try appendType1Int(&out, v);
+                    }
+                    try out.append(10);
+                    last_int = null;
+                    prev_int = null;
+                    pos += 1;
+                },
+                12 => { // two-byte escape opcode
+                    if (prev_int) |v| { try appendType1Int(&out, v); prev_int = null; }
+                    if (last_int) |v| { try appendType1Int(&out, v); last_int = null; }
+                    try out.append(b);
+                    pos += 1;
+                    if (pos < plain_cs.len) { try out.append(plain_cs[pos]); pos += 1; }
+                },
+                else => {
+                    if (prev_int) |v| { try appendType1Int(&out, v); prev_int = null; }
+                    if (last_int) |v| { try appendType1Int(&out, v); last_int = null; }
+                    try out.append(b);
+                    pos += 1;
+                },
+            }
+        }
+    }
+    if (prev_int) |v| try appendType1Int(&out, v);
+    if (last_int) |v| try appendType1Int(&out, v);
+    return out.toOwnedSlice();
+}
+
 /// Subset a Type1 font to only the glyphs in `needed_names`.
+/// Also subsets the Subrs array by tracing callsubr dependencies, which is
+/// the primary source of size reduction for CFF-derived Type1 fonts.
 /// The caller is responsible for building the set from all encodings (primary
 /// and any overflow re-encodings) that share this font's font file stream.
 /// Always retains .notdef even if not in `needed_names`.
@@ -730,69 +948,129 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
     if (decrypted_full.len < 4) return error.InvalidType1Font;
     const plain = decrypted_full[4..];
 
-    // Locate /CharStrings dict.
+    // Parse lenIV (default 4 if absent).
+    const len_iv: usize = blk: {
+        if (std.mem.indexOf(u8, plain, "/lenIV ")) |p| {
+            const after = p + "/lenIV ".len;
+            const eol = std.mem.indexOfScalarPos(u8, plain, after, '\n') orelse plain.len;
+            const tok = std.mem.trim(u8, plain[after..eol], " \r");
+            const sp = std.mem.indexOfScalar(u8, tok, ' ') orelse tok.len;
+            break :blk std.fmt.parseInt(usize, tok[0..sp], 10) catch 4;
+        }
+        break :blk 4;
+    };
+
+    // Locate /CharStrings dict to delimit the private dict preamble.
     const cs_kw = "/CharStrings ";
     const cs_kw_pos = std.mem.indexOf(u8, plain, cs_kw) orelse return error.NoCharStrings;
-
-    // Find the start of the /CharStrings line (for verbatim copy of everything before it).
-    var cs_line_start = cs_kw_pos;
-    while (cs_line_start > 0 and plain[cs_line_start - 1] != '\n') cs_line_start -= 1;
-
-    // Find "begin" marker and the first glyph entry.
-    const begin_kw = "begin";
-    const begin_pos = std.mem.indexOfPos(u8, plain, cs_kw_pos, begin_kw) orelse return error.NoCharStrings;
-    var entries_start = begin_pos + begin_kw.len;
-    while (entries_start < plain.len and
-        (plain[entries_start] == '\n' or plain[entries_start] == '\r' or plain[entries_start] == ' '))
-        entries_start += 1;
-
-    // Detect the readstring operator name (RD or -|) and end operator (ND or |-).
     const private_section = plain[0..cs_kw_pos];
+
+    // Detect operator names.
     const rd_op: []const u8 = if (std.mem.indexOf(u8, private_section, " RD ") != null or
         std.mem.indexOf(u8, private_section, "\nRD ") != null) "RD" else "-|";
     const nd_op: []const u8 = if (std.mem.indexOf(u8, private_section, " ND\n") != null or
         std.mem.indexOf(u8, private_section, "\nND\n") != null) "ND" else "|-";
+    const np_op: []const u8 = if (std.mem.indexOf(u8, private_section, " NP\n") != null or
+        std.mem.indexOf(u8, private_section, "\nNP\n") != null) "NP" else "|";
 
-    // Parse all glyph entries.  Each entry has the form:
-    //   /name count RD <count binary bytes>ND\n
-    const GlyphEntry = struct {
-        name: []const u8,
-        bytes: []const u8, // verbatim slice of plain from '/' to end of '\n'
-    };
+    // ---- Parse /Subrs section ----
+    const SubrRaw = struct { idx: usize, encrypted: []const u8 };
+    var subr_raws = std.array_list.Managed(SubrRaw).init(gpa);
+    defer subr_raws.deinit();
+    var subrs_line_start: ?usize = null;
+    var after_subrs: usize = 0;
+    var subrs_closer: []const u8 = "def";
+
+    if (std.mem.indexOf(u8, private_section, "/Subrs ")) |subrs_kw_pos| {
+        var sls = subrs_kw_pos;
+        while (sls > 0 and plain[sls - 1] != '\n') sls -= 1;
+        subrs_line_start = sls;
+
+        const array_pos = std.mem.indexOfPos(u8, plain, subrs_kw_pos, "array") orelse
+            return error.InvalidSubrs;
+        var spos = array_pos + "array".len;
+        while (spos < plain.len and (plain[spos] == ' ' or plain[spos] == '\r' or plain[spos] == '\n'))
+            spos += 1;
+
+        // Parse "dup idx count RD <binary> NP\n" entries.
+        while (spos < plain.len) {
+            while (spos < plain.len and
+                (plain[spos] == ' ' or plain[spos] == '\t' or plain[spos] == '\r' or plain[spos] == '\n'))
+                spos += 1;
+            if (spos >= plain.len or !std.mem.startsWith(u8, plain[spos..], "dup ")) break;
+            spos += "dup ".len;
+
+            const idx_end = std.mem.indexOfScalarPos(u8, plain, spos, ' ') orelse break;
+            const idx = std.fmt.parseUnsigned(usize, plain[spos..idx_end], 10) catch break;
+            spos = idx_end + 1;
+
+            const cnt_end = std.mem.indexOfScalarPos(u8, plain, spos, ' ') orelse break;
+            const cnt = std.fmt.parseUnsigned(usize, plain[spos..cnt_end], 10) catch break;
+            spos = cnt_end + 1;
+
+            spos += rd_op.len + 1; // skip "RD "
+            if (spos + cnt > plain.len) break;
+            const enc_subr = plain[spos .. spos + cnt];
+            spos += cnt;
+            while (spos < plain.len and plain[spos] == ' ') spos += 1; // skip optional space before NP
+            spos += np_op.len; // skip "NP"
+            while (spos < plain.len and (plain[spos] == '\r' or plain[spos] == '\n')) spos += 1;
+            try subr_raws.append(.{ .idx = idx, .encrypted = enc_subr });
+        }
+        // Detect the Subrs section closer ("def" or the nd_op, e.g. "ND").
+        // Some fonts close with "def", others with "ND" (= {noaccess def} executeonly).
+        // Capture it verbatim so the new section uses the same operator, then skip past it.
+        const close_start = spos;
+        while (spos < plain.len and plain[spos] != '\n' and plain[spos] != '\r' and plain[spos] != ' ')
+            spos += 1;
+        subrs_closer = plain[close_start..spos];
+        while (spos < plain.len and (plain[spos] == '\r' or plain[spos] == '\n')) spos += 1;
+        after_subrs = spos;
+    }
+
+    // Build flat array indexed by original subr index.
+    var max_subr_idx: usize = 0;
+    for (subr_raws.items) |s| if (s.idx > max_subr_idx) { max_subr_idx = s.idx; };
+    var subr_data = try gpa.alloc(?[]const u8, if (subr_raws.items.len > 0) max_subr_idx + 1 else 0);
+    defer gpa.free(subr_data);
+    @memset(subr_data, null);
+    for (subr_raws.items) |s| subr_data[s.idx] = s.encrypted;
+
+    // ---- Parse /CharStrings section ----
+    var cs_line_start = cs_kw_pos;
+    while (cs_line_start > 0 and plain[cs_line_start - 1] != '\n') cs_line_start -= 1;
+    const begin_pos = std.mem.indexOfPos(u8, plain, cs_kw_pos, "begin") orelse return error.NoCharStrings;
+    var entries_start = begin_pos + "begin".len;
+    while (entries_start < plain.len and
+        (plain[entries_start] == '\n' or plain[entries_start] == '\r' or plain[entries_start] == ' '))
+        entries_start += 1;
+
+    const GlyphEntry = struct { name: []const u8, encrypted: []const u8 };
     var all_glyphs = std.array_list.Managed(GlyphEntry).init(gpa);
     defer all_glyphs.deinit();
 
     var pos = entries_start;
     while (pos < plain.len) {
-        // skip any whitespace between entries (some fonts have space or blank lines)
         while (pos < plain.len and plain[pos] != '/') {
             if (plain[pos] == 'e') break; // hit "end"
             pos += 1;
         }
         if (pos >= plain.len or plain[pos] != '/') break;
-        const entry_start = pos;
-        pos += 1; // skip '/'
-
+        pos += 1;
         const name_end = std.mem.indexOfScalarPos(u8, plain, pos, ' ') orelse break;
         const glyph_name = plain[pos..name_end];
         pos = name_end + 1;
-
-        const count_end = std.mem.indexOfScalarPos(u8, plain, pos, ' ') orelse break;
-        const count = std.fmt.parseUnsigned(usize, plain[pos..count_end], 10) catch break;
-        pos = count_end + 1;
-
+        const cnt_end = std.mem.indexOfScalarPos(u8, plain, pos, ' ') orelse break;
+        const cnt = std.fmt.parseUnsigned(usize, plain[pos..cnt_end], 10) catch break;
+        pos = cnt_end + 1;
         pos += rd_op.len + 1; // skip "RD "
-        if (pos + count > plain.len) break;
-        pos += count; // skip binary charstring data
+        if (pos + cnt > plain.len) break;
+        const enc_cs = plain[pos .. pos + cnt];
+        pos += cnt;
         pos += nd_op.len; // skip "ND"
-
-        // skip line ending
         while (pos < plain.len and (plain[pos] == '\n' or plain[pos] == '\r')) pos += 1;
-
-        try all_glyphs.append(.{ .name = glyph_name, .bytes = plain[entry_start..pos] });
+        try all_glyphs.append(.{ .name = glyph_name, .encrypted = enc_cs });
     }
-
-    // Skip the "end" that closes the CharStrings dict.
     var after_cs = pos;
     if (std.mem.startsWith(u8, plain[after_cs..], "end")) {
         after_cs += 3;
@@ -800,32 +1078,106 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
             after_cs += 1;
     }
 
-    // Count kept glyphs and build new plaintext.
-    var kept: usize = 0;
-    for (all_glyphs.items) |g| {
-        if (needed.contains(g.name)) kept += 1;
+    // ---- Trace Subr dependencies from needed CharStrings ----
+    var needed_subrs = std.AutoHashMap(usize, void).init(gpa);
+    defer needed_subrs.deinit();
+    if (subr_data.len > 0) {
+        for (all_glyphs.items) |g| {
+            if (!needed.contains(g.name)) continue;
+            const plain_cs = try decryptCharstring(gpa, g.encrypted, len_iv);
+            defer gpa.free(plain_cs);
+            try traceSubrs(gpa, plain_cs, subr_data, len_iv, &needed_subrs);
+        }
     }
 
+    // ---- Assign new sequential indices (0-based) to needed Subrs ----
+    var old_to_new = std.AutoHashMap(usize, usize).init(gpa);
+    defer old_to_new.deinit();
+    {
+        var sorted_needed = std.array_list.Managed(usize).init(gpa);
+        defer sorted_needed.deinit();
+        var kit = needed_subrs.keyIterator();
+        while (kit.next()) |k| try sorted_needed.append(k.*);
+        std.sort.block(usize, sorted_needed.items, {}, std.sort.asc(usize));
+        for (sorted_needed.items, 0..) |old_idx, new_idx| try old_to_new.put(old_idx, new_idx);
+    }
+
+    const kept_subrs = needed_subrs.count();
+    // Rewrite charstrings whenever a Subrs section exists (indices may change).
+    const rewrite_cs = subr_data.len > 0;
+
+    // ---- Build new Subrs section ----
+    var new_subrs_buf = std.array_list.Managed(u8).init(gpa);
+    defer new_subrs_buf.deinit();
+    if (subrs_line_start != null) {
+        try new_subrs_buf.writer().print("/Subrs {d} array\n", .{kept_subrs});
+        var sorted_needed2 = std.array_list.Managed(usize).init(gpa);
+        defer sorted_needed2.deinit();
+        var kit2 = needed_subrs.keyIterator();
+        while (kit2.next()) |k| try sorted_needed2.append(k.*);
+        std.sort.block(usize, sorted_needed2.items, {}, std.sort.asc(usize));
+        for (sorted_needed2.items) |old_idx| {
+            const new_idx = old_to_new.get(old_idx).?;
+            const enc_s = subr_data[old_idx].?;
+            const plain_s = try decryptCharstring(gpa, enc_s, len_iv);
+            defer gpa.free(plain_s);
+            const rewritten_s = try rewriteCallsubr(gpa, plain_s, old_to_new);
+            defer gpa.free(rewritten_s);
+            const re_enc_s = try encryptCharstring(gpa, rewritten_s, len_iv);
+            defer gpa.free(re_enc_s);
+            try new_subrs_buf.writer().print("dup {d} {d} {s} ", .{ new_idx, re_enc_s.len, rd_op });
+            try new_subrs_buf.appendSlice(re_enc_s);
+            try new_subrs_buf.writer().print("{s}\n", .{np_op});
+        }
+        try new_subrs_buf.appendSlice(subrs_closer);
+        try new_subrs_buf.appendSlice("\n");
+    }
+
+    // ---- Build new CharStrings section ----
+    var kept_glyphs: usize = 0;
+    for (all_glyphs.items) |g| if (needed.contains(g.name)) { kept_glyphs += 1; };
+
+    var new_cs_buf = std.array_list.Managed(u8).init(gpa);
+    defer new_cs_buf.deinit();
+    try new_cs_buf.writer().print("/CharStrings {d} dict dup begin\n", .{kept_glyphs});
+    for (all_glyphs.items) |g| {
+        if (!needed.contains(g.name)) continue;
+        const enc_out = if (rewrite_cs) blk: {
+            const plain_cs = try decryptCharstring(gpa, g.encrypted, len_iv);
+            defer gpa.free(plain_cs);
+            const rewritten = try rewriteCallsubr(gpa, plain_cs, old_to_new);
+            defer gpa.free(rewritten);
+            break :blk try encryptCharstring(gpa, rewritten, len_iv);
+        } else try gpa.dupe(u8, g.encrypted);
+        defer gpa.free(enc_out);
+        try new_cs_buf.writer().print("/{s} {d} {s} ", .{ g.name, enc_out.len, rd_op });
+        try new_cs_buf.appendSlice(enc_out);
+        try new_cs_buf.writer().print("{s}\n", .{nd_op});
+    }
+    try new_cs_buf.appendSlice("end\n");
+
+    // ---- Assemble new plaintext ----
     var new_plain = std.array_list.Managed(u8).init(gpa);
     defer new_plain.deinit();
-    try new_plain.appendSlice(plain[0..cs_line_start]);
-    try new_plain.writer().print("/CharStrings {d} dict dup begin\n", .{kept});
-    for (all_glyphs.items) |g| {
-        if (needed.contains(g.name)) try new_plain.appendSlice(g.bytes);
+    if (subrs_line_start) |sls| {
+        try new_plain.appendSlice(plain[0..sls]); // private dict preamble
+        try new_plain.appendSlice(new_subrs_buf.items); // new Subrs section
+        try new_plain.appendSlice(plain[after_subrs..cs_line_start]); // between
+    } else {
+        try new_plain.appendSlice(plain[0..cs_line_start]);
     }
-    try new_plain.appendSlice("end\n");
+    try new_plain.appendSlice(new_cs_buf.items);
     try new_plain.appendSlice(plain[after_cs..]);
 
-    // Re-encrypt (prepends 4-byte seed) and reassemble around the original header/trailer.
     const new_encrypted = try encryptEexec(gpa, new_plain.items);
     errdefer gpa.free(new_encrypted);
-
     const header = font_data.data[0..font_data.length1];
     const trailer = font_data.data[font_data.length1 + font_data.length2 ..];
     const new_data = try std.mem.concat(gpa, u8, &.{ header, new_encrypted, trailer });
 
-    log.dbg("groff: subset font {s}: {d} -> {d} bytes ({d}/{d} glyphs)\n", .{
-        font_data.font_name, font_data.data.len, new_data.len, kept, all_glyphs.items.len,
+    log.dbg("groff: subset font {s}: {d} -> {d} bytes ({d}/{d} glyphs, {d}/{d} subrs)\n", .{
+        font_data.font_name, font_data.data.len, new_data.len,
+        kept_glyphs, all_glyphs.items.len, kept_subrs, subr_raws.items.len,
     });
     return Type1FontData{
         .data = new_data,
