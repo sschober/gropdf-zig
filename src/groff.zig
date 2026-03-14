@@ -146,6 +146,39 @@ pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
     }
     return GroffPathError.FontNotFound;
 }
+/// Split a groff font descriptor charset line into fields.
+///
+/// Groff font descriptor charset lines typically separate columns with tabs.
+/// However, some fonts (notably those generated for Type1 fonts) may use
+/// multiple spaces instead. We treat a run of 2+ whitespace characters or any
+/// tab as a field separator, allowing the "metrics" field to contain a single
+/// space (e.g. "340,453 0").
+fn splitCharsetFields(line: String, out: []String) usize {
+    var field_idx: usize = 0;
+    var i: usize = 0;
+    const len = line.len;
+    while (i < len and field_idx < out.len) {
+        // Skip any leading whitespace
+        while (i < len and (line[i] == ' ' or line[i] == '\t')) i += 1;
+        if (i >= len) break;
+        const start = i;
+        // Scan until we find a field separator: either a tab, or a run of 2+ spaces/tabs.
+        while (i < len) {
+            const c = line[i];
+            if (c == '\t') break;
+            if (c == ' ') {
+                if (i + 1 < len and (line[i + 1] == ' ' or line[i + 1] == '\t')) break;
+            }
+            i += 1;
+        }
+        out[field_idx] = line[start..i];
+        field_idx += 1;
+        // Skip the separator whitespace
+        while (i < len and (line[i] == ' ' or line[i] == '\t')) i += 1;
+    }
+    return field_idx;
+}
+
 /// reads the groff font descriptor file as defined in `groff_font(5)`. parses
 /// the charset section of that file to extract the width of each glyph. uses
 /// the index column to store the width in an array.
@@ -168,20 +201,19 @@ pub fn readGlyphMap(gpa: Allocator, font_name: String) !GlyphMap {
             continue;
         }
         // we are in the charset section
-        var it_glyph = std.mem.splitScalar(u8, line, '\t');
-        _ = it_glyph.next().?;
-        const metrics = it_glyph.next().?;
+        var fields: [6]String = undefined;
+        const field_count = splitCharsetFields(line, &fields);
+        if (field_count < 5) continue;
+        const metrics = fields[1];
         if (std.mem.eql(u8, metrics, "\"")) {
             continue;
         }
         var it_metrics = std.mem.splitScalar(u8, metrics, ',');
         const glyph_width = it_metrics.next().?;
         const glyph_width_usize = try std.fmt.parseUnsigned(usize, glyph_width, 10);
-        _ = it_glyph.next().?; //type
-        const index = it_glyph.next().?;
+        const index = fields[3];
         // Code -1 means the glyph has no byte code; skip it
         const index_usize = std.fmt.parseUnsigned(usize, index, 10) catch continue;
-        _ = it_glyph.next().?;
         if (index_usize < glyph_widths.len) {
             glyph_widths[index_usize] = glyph_width_usize;
         }
@@ -195,12 +227,14 @@ const CharsetEntry = struct { code: u8, groff_name: String, ps_name: String };
 /// Parse one charset line into a CharsetEntry. Returns null for lines with
 /// code -1, code > 255, or that cannot be parsed.
 fn parseCharsetLine(line: String) ?CharsetEntry {
-    var it = std.mem.splitScalar(u8, line, '\t');
-    const groff_name = it.next() orelse return null;
-    _ = it.next() orelse return null; // metrics (may be `"`)
-    _ = it.next() orelse return null; // type
-    const code_str = it.next() orelse return null;
-    const ps_name_raw = it.next() orelse return null;
+    var fields: [6]String = undefined;
+    const field_count = splitCharsetFields(line, &fields);
+    if (field_count < 5) return null;
+    const groff_name = fields[0];
+    const metrics = fields[1];
+    if (std.mem.eql(u8, metrics, "\"")) return null;
+    const code_str = fields[3];
+    const ps_name_raw = fields[4];
     const ps_name = std.mem.trim(u8, ps_name_raw, " \t\r");
     const code_usize = std.fmt.parseUnsigned(usize, code_str, 10) catch return null;
     if (code_usize > 255) return null;
@@ -266,14 +300,15 @@ pub fn buildFontMaps(gpa: Allocator, font_name: String) !FontMaps {
             if (std.mem.eql(u8, line, "charset")) in_charset = true;
             continue;
         }
-        var it = std.mem.splitScalar(u8, line, '\t');
-        const groff_name = it.next() orelse continue;
+        var fields: [6]String = undefined;
+        const field_count = splitCharsetFields(line, &fields);
+        if (field_count < 5) continue;
+        const groff_name = fields[0];
         if (std.mem.eql(u8, groff_name, "---")) continue;
-        const metrics = it.next() orelse continue;
+        const metrics = fields[1];
         if (std.mem.eql(u8, metrics, "\"")) continue;
-        _ = it.next() orelse continue; // type
-        const code_str = it.next() orelse continue;
-        const ps_name_raw = it.next() orelse continue;
+        const code_str = fields[3];
+        const ps_name_raw = fields[4];
         const ps_name = std.mem.trim(u8, ps_name_raw, " \t\r");
         if (ps_name.len == 0) continue;
         const code_int = std.fmt.parseInt(i64, code_str, 10) catch continue;
@@ -561,53 +596,155 @@ fn parseType1FontData(gpa: Allocator, data: []const u8) !Type1FontData {
 /// Adobe StandardEncoding: maps byte position to PostScript glyph name.
 const standard_encoding: [256]?[]const u8 = build: {
     var enc: [256]?[]const u8 = .{null} ** 256;
-    enc[32]  = "space";        enc[33]  = "exclam";       enc[34]  = "quotedbl";
-    enc[35]  = "numbersign";   enc[36]  = "dollar";       enc[37]  = "percent";
-    enc[38]  = "ampersand";    enc[39]  = "quoteright";   enc[40]  = "parenleft";
-    enc[41]  = "parenright";   enc[42]  = "asterisk";     enc[43]  = "plus";
-    enc[44]  = "comma";        enc[45]  = "hyphen";       enc[46]  = "period";
-    enc[47]  = "slash";
-    enc[48]  = "zero";    enc[49]  = "one";    enc[50]  = "two";   enc[51]  = "three";
-    enc[52]  = "four";    enc[53]  = "five";   enc[54]  = "six";   enc[55]  = "seven";
-    enc[56]  = "eight";   enc[57]  = "nine";
-    enc[58]  = "colon";        enc[59]  = "semicolon";    enc[60]  = "less";
-    enc[61]  = "equal";        enc[62]  = "greater";      enc[63]  = "question";
-    enc[64]  = "at";
-    enc[65]  = "A"; enc[66]  = "B"; enc[67]  = "C"; enc[68]  = "D"; enc[69]  = "E";
-    enc[70]  = "F"; enc[71]  = "G"; enc[72]  = "H"; enc[73]  = "I"; enc[74]  = "J";
-    enc[75]  = "K"; enc[76]  = "L"; enc[77]  = "M"; enc[78]  = "N"; enc[79]  = "O";
-    enc[80]  = "P"; enc[81]  = "Q"; enc[82]  = "R"; enc[83]  = "S"; enc[84]  = "T";
-    enc[85]  = "U"; enc[86]  = "V"; enc[87]  = "W"; enc[88]  = "X"; enc[89]  = "Y";
-    enc[90]  = "Z";
-    enc[91]  = "bracketleft";  enc[92]  = "backslash";    enc[93]  = "bracketright";
-    enc[94]  = "asciicircum";  enc[95]  = "underscore";   enc[96]  = "quoteleft";
-    enc[97]  = "a"; enc[98]  = "b"; enc[99]  = "c"; enc[100] = "d"; enc[101] = "e";
-    enc[102] = "f"; enc[103] = "g"; enc[104] = "h"; enc[105] = "i"; enc[106] = "j";
-    enc[107] = "k"; enc[108] = "l"; enc[109] = "m"; enc[110] = "n"; enc[111] = "o";
-    enc[112] = "p"; enc[113] = "q"; enc[114] = "r"; enc[115] = "s"; enc[116] = "t";
-    enc[117] = "u"; enc[118] = "v"; enc[119] = "w"; enc[120] = "x"; enc[121] = "y";
+    enc[32] = "space";
+    enc[33] = "exclam";
+    enc[34] = "quotedbl";
+    enc[35] = "numbersign";
+    enc[36] = "dollar";
+    enc[37] = "percent";
+    enc[38] = "ampersand";
+    enc[39] = "quoteright";
+    enc[40] = "parenleft";
+    enc[41] = "parenright";
+    enc[42] = "asterisk";
+    enc[43] = "plus";
+    enc[44] = "comma";
+    enc[45] = "hyphen";
+    enc[46] = "period";
+    enc[47] = "slash";
+    enc[48] = "zero";
+    enc[49] = "one";
+    enc[50] = "two";
+    enc[51] = "three";
+    enc[52] = "four";
+    enc[53] = "five";
+    enc[54] = "six";
+    enc[55] = "seven";
+    enc[56] = "eight";
+    enc[57] = "nine";
+    enc[58] = "colon";
+    enc[59] = "semicolon";
+    enc[60] = "less";
+    enc[61] = "equal";
+    enc[62] = "greater";
+    enc[63] = "question";
+    enc[64] = "at";
+    enc[65] = "A";
+    enc[66] = "B";
+    enc[67] = "C";
+    enc[68] = "D";
+    enc[69] = "E";
+    enc[70] = "F";
+    enc[71] = "G";
+    enc[72] = "H";
+    enc[73] = "I";
+    enc[74] = "J";
+    enc[75] = "K";
+    enc[76] = "L";
+    enc[77] = "M";
+    enc[78] = "N";
+    enc[79] = "O";
+    enc[80] = "P";
+    enc[81] = "Q";
+    enc[82] = "R";
+    enc[83] = "S";
+    enc[84] = "T";
+    enc[85] = "U";
+    enc[86] = "V";
+    enc[87] = "W";
+    enc[88] = "X";
+    enc[89] = "Y";
+    enc[90] = "Z";
+    enc[91] = "bracketleft";
+    enc[92] = "backslash";
+    enc[93] = "bracketright";
+    enc[94] = "asciicircum";
+    enc[95] = "underscore";
+    enc[96] = "quoteleft";
+    enc[97] = "a";
+    enc[98] = "b";
+    enc[99] = "c";
+    enc[100] = "d";
+    enc[101] = "e";
+    enc[102] = "f";
+    enc[103] = "g";
+    enc[104] = "h";
+    enc[105] = "i";
+    enc[106] = "j";
+    enc[107] = "k";
+    enc[108] = "l";
+    enc[109] = "m";
+    enc[110] = "n";
+    enc[111] = "o";
+    enc[112] = "p";
+    enc[113] = "q";
+    enc[114] = "r";
+    enc[115] = "s";
+    enc[116] = "t";
+    enc[117] = "u";
+    enc[118] = "v";
+    enc[119] = "w";
+    enc[120] = "x";
+    enc[121] = "y";
     enc[122] = "z";
-    enc[123] = "braceleft";    enc[124] = "bar";           enc[125] = "braceright";
+    enc[123] = "braceleft";
+    enc[124] = "bar";
+    enc[125] = "braceright";
     enc[126] = "asciitilde";
-    enc[161] = "exclamdown";    enc[162] = "cent";          enc[163] = "sterling";
-    enc[164] = "fraction";      enc[165] = "yen";           enc[166] = "florin";
-    enc[167] = "section";       enc[168] = "currency";      enc[169] = "quotesingle";
-    enc[170] = "quotedblleft";  enc[171] = "guillemotleft"; enc[172] = "guilsinglleft";
-    enc[173] = "guilsinglright";enc[174] = "fi";            enc[175] = "fl";
-    enc[177] = "endash";        enc[178] = "dagger";        enc[179] = "daggerdbl";
-    enc[180] = "periodcentered";enc[182] = "paragraph";     enc[183] = "bullet";
-    enc[184] = "quotesinglbase";enc[185] = "quotedblbase";  enc[186] = "quotedblright";
-    enc[187] = "guillemotright";enc[188] = "ellipsis";      enc[189] = "perthousand";
+    enc[161] = "exclamdown";
+    enc[162] = "cent";
+    enc[163] = "sterling";
+    enc[164] = "fraction";
+    enc[165] = "yen";
+    enc[166] = "florin";
+    enc[167] = "section";
+    enc[168] = "currency";
+    enc[169] = "quotesingle";
+    enc[170] = "quotedblleft";
+    enc[171] = "guillemotleft";
+    enc[172] = "guilsinglleft";
+    enc[173] = "guilsinglright";
+    enc[174] = "fi";
+    enc[175] = "fl";
+    enc[177] = "endash";
+    enc[178] = "dagger";
+    enc[179] = "daggerdbl";
+    enc[180] = "periodcentered";
+    enc[182] = "paragraph";
+    enc[183] = "bullet";
+    enc[184] = "quotesinglbase";
+    enc[185] = "quotedblbase";
+    enc[186] = "quotedblright";
+    enc[187] = "guillemotright";
+    enc[188] = "ellipsis";
+    enc[189] = "perthousand";
     enc[191] = "questiondown";
-    enc[193] = "grave";         enc[194] = "acute";         enc[195] = "circumflex";
-    enc[196] = "tilde";         enc[197] = "macron";        enc[198] = "breve";
-    enc[199] = "dotaccent";     enc[200] = "dieresis";      enc[202] = "ring";
-    enc[203] = "cedilla";       enc[205] = "hungarumlaut";  enc[206] = "ogonek";
-    enc[207] = "caron";         enc[208] = "emdash";
-    enc[225] = "AE";            enc[227] = "ordfeminine";   enc[232] = "Lslash";
-    enc[233] = "Oslash";        enc[234] = "OE";            enc[235] = "ordmasculine";
-    enc[241] = "ae";            enc[245] = "dotlessi";      enc[248] = "lslash";
-    enc[249] = "oslash";        enc[250] = "oe";            enc[251] = "germandbls";
+    enc[193] = "grave";
+    enc[194] = "acute";
+    enc[195] = "circumflex";
+    enc[196] = "tilde";
+    enc[197] = "macron";
+    enc[198] = "breve";
+    enc[199] = "dotaccent";
+    enc[200] = "dieresis";
+    enc[202] = "ring";
+    enc[203] = "cedilla";
+    enc[205] = "hungarumlaut";
+    enc[206] = "ogonek";
+    enc[207] = "caron";
+    enc[208] = "emdash";
+    enc[225] = "AE";
+    enc[227] = "ordfeminine";
+    enc[232] = "Lslash";
+    enc[233] = "Oslash";
+    enc[234] = "OE";
+    enc[235] = "ordmasculine";
+    enc[241] = "ae";
+    enc[245] = "dotlessi";
+    enc[248] = "lslash";
+    enc[249] = "oslash";
+    enc[250] = "oe";
+    enc[251] = "germandbls";
     break :build enc;
 };
 
@@ -854,8 +991,16 @@ fn traceSubrs(
                     prev_int = null;
                     pos += 1;
                 },
-                12 => { last_int = null; prev_int = null; pos += 2; },
-                else => { last_int = null; prev_int = null; pos += 1; },
+                12 => {
+                    last_int = null;
+                    prev_int = null;
+                    pos += 2;
+                },
+                else => {
+                    last_int = null;
+                    prev_int = null;
+                    pos += 1;
+                },
             }
         }
     }
@@ -912,15 +1057,30 @@ fn rewriteCallsubr(
                     pos += 1;
                 },
                 12 => { // two-byte escape opcode
-                    if (prev_int) |v| { try appendType1Int(&out, v); prev_int = null; }
-                    if (last_int) |v| { try appendType1Int(&out, v); last_int = null; }
+                    if (prev_int) |v| {
+                        try appendType1Int(&out, v);
+                        prev_int = null;
+                    }
+                    if (last_int) |v| {
+                        try appendType1Int(&out, v);
+                        last_int = null;
+                    }
                     try out.append(b);
                     pos += 1;
-                    if (pos < plain_cs.len) { try out.append(plain_cs[pos]); pos += 1; }
+                    if (pos < plain_cs.len) {
+                        try out.append(plain_cs[pos]);
+                        pos += 1;
+                    }
                 },
                 else => {
-                    if (prev_int) |v| { try appendType1Int(&out, v); prev_int = null; }
-                    if (last_int) |v| { try appendType1Int(&out, v); last_int = null; }
+                    if (prev_int) |v| {
+                        try appendType1Int(&out, v);
+                        prev_int = null;
+                    }
+                    if (last_int) |v| {
+                        try appendType1Int(&out, v);
+                        last_int = null;
+                    }
                     try out.append(b);
                     pos += 1;
                 },
@@ -1030,7 +1190,9 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
 
     // Build flat array indexed by original subr index.
     var max_subr_idx: usize = 0;
-    for (subr_raws.items) |s| if (s.idx > max_subr_idx) { max_subr_idx = s.idx; };
+    for (subr_raws.items) |s| if (s.idx > max_subr_idx) {
+        max_subr_idx = s.idx;
+    };
     var subr_data = try gpa.alloc(?[]const u8, if (subr_raws.items.len > 0) max_subr_idx + 1 else 0);
     defer gpa.free(subr_data);
     @memset(subr_data, null);
@@ -1135,7 +1297,9 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
 
     // ---- Build new CharStrings section ----
     var kept_glyphs: usize = 0;
-    for (all_glyphs.items) |g| if (needed.contains(g.name)) { kept_glyphs += 1; };
+    for (all_glyphs.items) |g| if (needed.contains(g.name)) {
+        kept_glyphs += 1;
+    };
 
     var new_cs_buf = std.array_list.Managed(u8).init(gpa);
     defer new_cs_buf.deinit();
@@ -1176,8 +1340,9 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
     const new_data = try std.mem.concat(gpa, u8, &.{ header, new_encrypted, trailer });
 
     log.dbg("groff: subset font {s}: {d} -> {d} bytes ({d}/{d} glyphs, {d}/{d} subrs)\n", .{
-        font_data.font_name, font_data.data.len, new_data.len,
-        kept_glyphs, all_glyphs.items.len, kept_subrs, subr_raws.items.len,
+        font_data.font_name, font_data.data.len,   new_data.len,
+        kept_glyphs,         all_glyphs.items.len, kept_subrs,
+        subr_raws.items.len,
     });
     return Type1FontData{
         .data = new_data,
