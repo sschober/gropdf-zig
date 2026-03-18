@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 180" width="480" height="180">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fafaf8"/>
+      <stop offset="100%" style="stop-color:#f0ede8"/>
+    </linearGradient>
+    <linearGradient id="zigGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f7a41d"/>
+      <stop offset="100%" style="stop-color:#e07b10"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a2535"/>
+      <stop offset="100%" style="stop-color:#2d3f55"/>
+    </linearGradient>
+    <filter id="subtleShadow">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#00000018"/>
+    </filter>
+    <filter id="zigGlow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="480" height="180" rx="12" fill="url(#bgGrad)"/>
+
+  <!-- Subtle ruled lines (typesetting paper feel) -->
+  <g stroke="#e0dbd4" stroke-width="0.75">
+    <line x1="0" y1="45" x2="480" y2="45"/>
+    <line x1="0" y1="90" x2="480" y2="90"/>
+    <line x1="0" y1="135" x2="480" y2="135"/>
+  </g>
+
+  <!-- Left margin line (groff/typesetting feel) -->
+  <line x1="110" y1="0" x2="110" y2="180" stroke="#e8a030" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Document icon -->
+  <g transform="translate(22, 26)" filter="url(#subtleShadow)">
+    <rect x="0" y="8" width="72" height="90" rx="4" fill="#ffffff" stroke="#d4cfc8" stroke-width="1.5"/>
+    <path d="M52 8 L72 28 L52 28 Z" fill="#f0ede8" stroke="#d4cfc8" stroke-width="1"/>
+
+    <!-- Typesetting lines -->
+    <rect x="8" y="36" width="40" height="3" rx="1.5" fill="#b8c8d8" opacity="0.9"/>
+    <rect x="8" y="44" width="48" height="3" rx="1.5" fill="#b8c8d8" opacity="0.9"/>
+    <rect x="8" y="52" width="35" height="3" rx="1.5" fill="#b8c8d8" opacity="0.8"/>
+    <rect x="8" y="60" width="44" height="3" rx="1.5" fill="#b8c8d8" opacity="0.8"/>
+    <rect x="8" y="68" width="30" height="3" rx="1.5" fill="#b8c8d8" opacity="0.6"/>
+    <rect x="8" y="76" width="48" height="3" rx="1.5" fill="#b8c8d8" opacity="0.6"/>
+
+    <!-- Zig bolt -->
+    <path d="M14 16 L44 16 L28 30 L52 30 L24 52 L40 52"
+          stroke="url(#zigGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"
+          fill="none" filter="url(#zigGlow)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="122" y="85"
+        font-family="'Georgia', 'Times New Roman', serif"
+        font-size="46"
+        font-weight="700"
+        letter-spacing="-1"
+        fill="url(#textGrad)">gropdf</text>
+
+  <text x="122" y="128"
+        font-family="'Courier New', monospace"
+        font-size="32"
+        font-weight="700"
+        letter-spacing="2"
+        fill="url(#zigGrad)"
+        filter="url(#zigGlow)">-zig</text>
+
+  <text x="122" y="152"
+        font-family="'Courier New', monospace"
+        font-size="11"
+        fill="#8a9aaa"
+        letter-spacing="2">PDF OUTPUT DEVICE · GROFF</text>
+
+  <!-- Right accent -->
+  <rect x="462" y="28" width="3" height="124" rx="1.5" fill="url(#zigGrad)" opacity="0.35"/>
+</svg>

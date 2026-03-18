@@ -1,5 +1,7 @@
 # A groff PDF device written in zig
 
+![gropdf-zig](docs/gropdf-zig-icon.svg)
+
 The original UNIX typesetting system `roff` (from 'runoff') has a GNU
 implementation called `groff`, which you will very likely have installed on
 your system if you use MacOS, a Linux distribution, or Windows with MinGW or

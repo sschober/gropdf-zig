@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="zigGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f7a41d"/>
+      <stop offset="100%" style="stop-color:#f0891a"/>
+    </linearGradient>
+    <filter id="zigGlow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="200" rx="32" fill="url(#bgGrad)"/>
+
+  <!-- Subtle grid -->
+  <g stroke="#1e2530" stroke-width="0.5" opacity="0.5">
+    <line x1="0" y1="50" x2="200" y2="50"/>
+    <line x1="0" y1="100" x2="200" y2="100"/>
+    <line x1="0" y1="150" x2="200" y2="150"/>
+    <line x1="50" y1="0" x2="50" y2="200"/>
+    <line x1="100" y1="0" x2="100" y2="200"/>
+    <line x1="150" y1="0" x2="150" y2="200"/>
+  </g>
+
+  <!-- Document -->
+  <g transform="translate(44, 28)">
+    <rect x="0" y="0" width="88" height="110" rx="6" fill="#1e2736" stroke="#30404d" stroke-width="1.5"/>
+    <!-- Folded corner -->
+    <path d="M62 0 L88 26 L62 26 Z" fill="#243040"/>
+    <path d="M62 0 L88 26" stroke="#30404d" stroke-width="1.5"/>
+
+    <!-- Typesetting lines -->
+    <rect x="10" y="36" width="50" height="3.5" rx="1.75" fill="#3a5068" opacity="0.8"/>
+    <rect x="10" y="46" width="62" height="3.5" rx="1.75" fill="#3a5068" opacity="0.8"/>
+    <rect x="10" y="56" width="44" height="3.5" rx="1.75" fill="#3a5068" opacity="0.7"/>
+    <rect x="10" y="66" width="58" height="3.5" rx="1.75" fill="#3a5068" opacity="0.7"/>
+    <rect x="10" y="76" width="38" height="3.5" rx="1.75" fill="#3a5068" opacity="0.5"/>
+    <rect x="10" y="86" width="55" height="3.5" rx="1.75" fill="#3a5068" opacity="0.5"/>
+
+    <!-- Zig bolt -->
+    <path d="M14 10 L58 10 L32 28 L68 28 L26 52 L48 52"
+          stroke="url(#zigGrad)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"
+          fill="none" filter="url(#zigGlow)"/>
+  </g>
+
+  <!-- Bottom label -->
+  <text x="100" y="168"
+        font-family="'Courier New', monospace"
+        font-size="13"
+        font-weight="700"
+        text-anchor="middle"
+        letter-spacing="3"
+        fill="#f7a41d"
+        opacity="0.9">gropdf-zig</text>
+
+  <!-- Corner accent -->
+  <rect x="172" y="16" width="3" height="48" rx="1.5" fill="url(#zigGrad)" opacity="0.4"/>
+</svg>
