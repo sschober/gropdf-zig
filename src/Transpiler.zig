@@ -2,6 +2,7 @@
 //!
 const std = @import("std");
 const pdf = @import("pdf.zig");
+const pdf_reader = @import("pdf_reader.zig");
 const groff = @import("groff.zig");
 const log = @import("log.zig");
 
@@ -239,6 +240,43 @@ const TranspileError = error{
 /// which we cannot ignore or handle other wise
 const XCommandError = error{WrongDevice} || TranspileError;
 
+/// Handle `x X pdf: pdfpic <file> [-L|-C|-R] <width>z <height>z`
+/// Embeds the first page of the given PDF as a Form XObject at the current
+/// graphic position.
+fn handle_pdfpic(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
+    const cur_page = self.cur_page orelse return TranspileError.StateError;
+    const doc = if (self.doc) |*d| d else return TranspileError.StateError;
+
+    const file_path = it.next() orelse return TranspileError.MissingArgument;
+
+    // optional alignment flag (-L, -C, -R) — consume and ignore
+    var maybe_w = it.next() orelse return TranspileError.MissingArgument;
+    if (std.mem.startsWith(u8, maybe_w, "-")) maybe_w = it.next() orelse return TranspileError.MissingArgument;
+
+    const width_z = try groff.zPosition.fromString(maybe_w);
+    const height_z = try groff.zPosition.fromString(it.next() orelse return TranspileError.MissingArgument);
+    const target_w = fixPointFromZPos(width_z);
+    const target_h = fixPointFromZPos(height_z);
+
+    const embed = pdf_reader.embedFirstPage(self.allocator, doc, file_path) catch |err| {
+        log.warn("{d}: warning: pdfpic: could not embed {s}: {}\n", .{ self.cur_line_num, file_path, err });
+        return;
+    };
+
+    const xobj_idx = try doc.addXObjectTo(cur_page, embed.obj_num);
+
+    const go = cur_page.contents.graphicalObject;
+    const src_w = embed.bbox[2] - embed.bbox[0];
+    const src_h = embed.bbox[3] - embed.bbox[1];
+    // bottom-left y = current y position minus image height
+    const y = go.cur_y.sub(target_h);
+    try go.placeXObject(xobj_idx, go.cur_x, y, target_w, target_h, src_w, src_h);
+
+    log.dbg("{d}: pdfpic: placed {s} as /Xo{d} at ({f},{f}) size {f}x{f}\n", .{
+        self.cur_line_num, file_path, xobj_idx, go.cur_x, y, target_w, target_h,
+    });
+}
+
 /// device control command
 /// sample: `x X papersize`
 fn handle_x(self: *Self, line: []u8) !void {
@@ -275,6 +313,7 @@ fn handle_x(self: *Self, line: []u8) !void {
             .X => {
                 // X escape control command
                 // sample: x X papersize=421000z,595000z
+                // sample: x X pdf: pdfpic file.pdf -L 160000z 120000z
                 const arg = it.next() orelse return;
                 if (std.mem.indexOf(u8, arg, "papersize")) |idxPapersize| {
                     if (0 == idxPapersize) {
@@ -300,6 +339,12 @@ fn handle_x(self: *Self, line: []u8) !void {
                     } else {
                         log.warn("{d}: warning: unexpected index: {d}\n", .{ self.cur_line_num, idxPapersize });
                     }
+                } else if (std.mem.eql(u8, arg, "pdf:")) {
+                    const sub = it.next() orelse return;
+                    if (std.mem.eql(u8, sub, "pdfpic")) {
+                        try self.handle_pdfpic(&it);
+                    }
+                    // marksuspend, markrestart, pagenumbering → silently ignored
                 } else {
                     log.warn("{d}: warning: unkown x X subcommand: {s}\n", .{ self.cur_line_num, arg });
                 }

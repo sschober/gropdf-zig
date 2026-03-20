@@ -202,6 +202,32 @@ pub const GraphicalObject = struct {
         try self.newLine();
         try self.lines.append(try std.fmt.allocPrint(self.allocator, "0.0 g", .{}));
     }
+    /// Place a Form XObject at position (x, y) — bottom-left corner in PDF
+    /// user space — scaled to (target_w × target_h) points.
+    /// `src_w` and `src_h` are the source Form's BBox dimensions.
+    /// `xobj_idx` is the /Xo<idx> index registered on the page.
+    pub fn placeXObject(
+        self: *GraphicalObject,
+        xobj_idx: usize,
+        x: FixPoint,
+        y: FixPoint,
+        target_w: FixPoint,
+        target_h: FixPoint,
+        src_w: f64,
+        src_h: f64,
+    ) !void {
+        try self.newLine();
+        const tw = @as(f64, @floatFromInt(target_w.integer)) + @as(f64, @floatFromInt(target_w.fraction)) / 1000.0;
+        const th = @as(f64, @floatFromInt(target_h.integer)) + @as(f64, @floatFromInt(target_h.fraction)) / 1000.0;
+        const sx = if (src_w > 0.0) tw / src_w else 1.0;
+        const sy = if (src_h > 0.0) th / src_h else 1.0;
+        const cmd = try std.fmt.allocPrint(self.allocator,
+            "q\n{d:.6} 0 0 {d:.6} {f} {f} cm\n/Xo{d} Do\nQ",
+            .{ sx, sy, x, y, xobj_idx },
+        );
+        try self.lines.append(cmd);
+    }
+
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -579,6 +605,8 @@ pub const Page = struct {
     /// fonts have to be referenced as resources by their font and object number:
     /// /F0 3 0 R
     resources: ArrayList(usize),
+    /// XObject resources (Form XObjects for embedded PDFs): /Xo0 N 0 R
+    xobjects: ArrayList(usize),
     x: usize = 612,
     y: usize = 792,
 
@@ -593,7 +621,14 @@ pub const Page = struct {
     };
 
     pub fn init(allocator: Allocator, n: usize, p: usize, c: *Stream) Page {
-        return Page{ .allocator = allocator, .objNum = n, .parentNum = p, .contents = c, .resources = ArrayList(usize).init(allocator) };
+        return Page{
+            .allocator = allocator,
+            .objNum = n,
+            .parentNum = p,
+            .contents = c,
+            .resources = ArrayList(usize).init(allocator),
+            .xobjects = ArrayList(usize).init(allocator),
+        };
     }
     /// iterates over resources list and renders /Fn k 0 R pdf object references
     pub fn resString(self: Page) !String {
@@ -618,10 +653,20 @@ pub const Page = struct {
             \\/Resources
             \\<<
             \\/Font {s}
+            \\
+        , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
+        if (self.xobjects.items.len > 0) {
+            try writer.print("/XObject <<\n", .{});
+            for (self.xobjects.items, 0..) |obj_num, i| {
+                try writer.print("/Xo{d} {d} 0 R\n", .{ i, obj_num });
+            }
+            try writer.print(">>\n", .{});
+        }
+        try writer.print(
             \\>>
             \\>>
             \\
-        , .{ self.parentNum, self.contents.objNum, self.x, self.y, try self.resString() });
+        , .{});
     }
     pub fn pdfObj(self: *Page) !*Object {
         const res = try self.allocator.create(Object);
@@ -661,6 +706,41 @@ const Catalog = struct {
     }
 };
 
+/// A raw PDF object whose content is stored as pre-formatted strings.
+/// Used for embedding objects (images, Form XObjects) copied from external PDFs.
+pub const RawObject = struct {
+    allocator: Allocator,
+    objNum: usize,
+    /// Dictionary entries (between << and >>), or literal content when is_literal=true.
+    dict_content: []const u8,
+    /// Raw stream bytes (already filtered/compressed) or null for non-stream objects.
+    stream: ?[]const u8,
+    /// When true, dict_content is output as-is (for arrays, integers, etc.).
+    is_literal: bool = false,
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) (std.Io.Writer.Error || error{ OutOfMemory, CompressionFailed })!void {
+        if (self.is_literal) {
+            try writer.print("{s}\n", .{self.dict_content});
+        } else {
+            try writer.print("<<\n{s}\n>>\n", .{self.dict_content});
+            if (self.stream) |s| {
+                try writer.print("stream\n", .{});
+                try writer.writeAll(s);
+                try writer.print("\nendstream\n", .{});
+            }
+        }
+    }
+
+    pub fn pdfObj(self: *RawObject) !*Object {
+        const res = try self.allocator.create(Object);
+        res.* = Object{ .raw = self };
+        return res;
+    }
+};
+
 /// interface of all pdf objects; needed, to be able to add all objects to an
 /// ArrayList in Document; later during printing of the document, we iterate
 /// over all objects and call the respective write() function, which ahs type
@@ -673,6 +753,7 @@ pub const Object = union(enum) {
     stream: *Stream,
     font_file_stream: *FontFileStream,
     font_descriptor: *FontDescriptor,
+    raw: *RawObject,
 
     pub fn format(
         self: @This(),
@@ -841,6 +922,46 @@ pub const Document = struct {
         log.dbg("pdf: adding {f} as obj num {d} to page {d}\n", .{ doc_font_ref, font.objNum, page.objNum });
         try page.resources.append(font.objNum);
         return Page.FontRef{ .idx = page.resources.items.len - 1 };
+    }
+
+    /// Add a raw PDF object (dict + optional stream) to the document.
+    /// Returns the new object's number.  Both `dict_content` and `stream`
+    /// must stay alive for the lifetime of the document.
+    pub fn addRawObject(self: *Document, dict_content: []const u8, stream: ?[]const u8) !usize {
+        const obj_num = self.objs.items.len + 1;
+        const raw = try self.allocator.create(RawObject);
+        raw.* = .{
+            .allocator = self.allocator,
+            .objNum = obj_num,
+            .dict_content = dict_content,
+            .stream = stream,
+        };
+        try self.addObj(try raw.pdfObj());
+        return obj_num;
+    }
+
+    /// Add a literal PDF object (array, integer, name, etc.) to the document.
+    /// The content is written as-is without << >> wrapping.
+    pub fn addLiteralObject(self: *Document, content: []const u8) !usize {
+        const obj_num = self.objs.items.len + 1;
+        const raw = try self.allocator.create(RawObject);
+        raw.* = .{
+            .allocator = self.allocator,
+            .objNum = obj_num,
+            .dict_content = content,
+            .stream = null,
+            .is_literal = true,
+        };
+        try self.addObj(try raw.pdfObj());
+        return obj_num;
+    }
+
+    /// Register a Form XObject on a page and return its index (used for /Xo<idx>).
+    pub fn addXObjectTo(self: *Document, page: *Page, xobj_obj_num: usize) !usize {
+        _ = self;
+        const idx = page.xobjects.items.len;
+        try page.xobjects.append(xobj_obj_num);
+        return idx;
     }
 
     /// add a new and empty page to the document and return a pointer to it
