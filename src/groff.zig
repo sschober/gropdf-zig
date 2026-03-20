@@ -129,8 +129,11 @@ pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
     const search_bases =
         [_]String{
             "/opt/homebrew/etc/groff/site-font", // homebrew site-font (user-installed)
-            "/usr/local/etc/groff/site-font", // source-install site-font
+            "/usr/local/etc/groff/site-font", // source-install site-font (/etc variant)
             "/etc/groff/site-font", // system-wide site-font on linux
+            "/usr/local/share/groff/site-font", // source-install site-font (/share variant)
+            "/usr/share/groff/site-font", // system site-font on linux (/share variant)
+            "/opt/homebrew/share/groff/site-font", // homebrew site-font (/share variant)
             "/usr/share/groff/current/font", // standard unix/linux
             "/usr/local/share/groff/current/font", // source-install
             "/opt/homebrew/share/groff/current/font", // macos homebrew
@@ -475,6 +478,9 @@ fn buildFontSearchDirs(gpa: Allocator) !std.array_list.Managed(String) {
         "/opt/homebrew/etc/groff/site-font/devpdf",
         "/usr/local/etc/groff/site-font/devpdf",
         "/etc/groff/site-font/devpdf",
+        "/usr/local/share/groff/site-font/devpdf",
+        "/usr/share/groff/site-font/devpdf",
+        "/opt/homebrew/share/groff/site-font/devpdf",
     }) |p| {
         std.fs.accessAbsolute(p, .{}) catch continue;
         try dirs.append(p);
@@ -1387,12 +1393,17 @@ pub fn findAndLoadFont(gpa: Allocator, groff_name: String) !?Type1FontData {
     // the groff name itself if there is no descriptor or no internalname field.
     var internal_name_buf: ?String = null;
     defer if (internal_name_buf) |s| gpa.free(s);
+    // For unknown fonts, try: internalname (from descriptor), then groff name itself.
+    // Both are needed because PFA files in site-font/devpdf are often named by the
+    // groff font name (e.g. MinionR.pfa), while Ghostscript dirs use the PS name.
+    var extra_candidates_buf: [2]String = undefined;
     const candidates: []const String = if (known_candidates.len > 0)
         known_candidates
     else blk: {
         if (try readInternalName(gpa, groff_name)) |internal| {
             internal_name_buf = internal;
-            break :blk @as([]const String, &[1]String{internal});
+            extra_candidates_buf = .{ internal, groff_name };
+            break :blk extra_candidates_buf[0..2];
         }
         break :blk &[1]String{groff_name};
     };
@@ -1410,7 +1421,15 @@ pub fn findAndLoadFont(gpa: Allocator, groff_name: String) !?Type1FontData {
                 };
                 gpa.free(path);
                 return parseType1FontData(gpa, data) catch |err| {
-                    log.warn("warning: could not parse Type1 font {s}{s}: {}\n", .{ name, ext, err });
+                    // Only warn for files that look like they should be fonts.
+                    // Silently skip extension-less files that turn out to be
+                    // groff descriptors or other non-Type1 content.
+                    if (ext.len > 0) {
+                        log.warn("warning: could not parse Type1 font {s}{s}: {}\n", .{ name, ext, err });
+                    } else {
+                        log.dbg("groff: skipping non-Type1 file {s}: {}\n", .{ name, err });
+                    }
+                    gpa.free(data);
                     continue;
                 };
             }
