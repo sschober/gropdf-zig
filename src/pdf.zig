@@ -55,26 +55,42 @@ pub const StandardFonts = enum {
     Courier_Bold_Oblique,
     Symbol,
     Zapf_Dingbats,
+    pub fn psName(self: StandardFonts) String {
+        return switch (self) {
+            .Times_Roman => "Times-Roman",
+            .Times_Bold => "Times-Bold",
+            .Times_Italic => "Times-Italic",
+            .Times_Bold_Italic => "Times-BoldItalic",
+            .Helvetica => "Helvetica",
+            .Helvetica_Bold => "Helvetica-Bold",
+            .Helvetica_Oblique => "Helvetica-Oblique",
+            .Helvetica_Bold_Oblique => "Helvetica-BoldOblique",
+            .Courier => "Courier",
+            .Courier_Bold => "Courier-Bold",
+            .Courier_Olbique => "Courier-Oblique",
+            .Courier_Bold_Oblique => "Courier-BoldOblique",
+            .Symbol => "Symbol",
+            .Zapf_Dingbats => "ZapfDingbats",
+        };
+    }
     pub fn string(self: StandardFonts) String {
-        // All Type1 text fonts use StandardEncoding with two extra differences for
-        // en-dash and em-dash (groff sends bytes 150/151 for these).
         const enc = "\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>";
-        switch (self) {
-            .Times_Roman => return "/BaseFont /Times-Roman\n/Subtype /Type1" ++ enc,
-            .Times_Bold => return "/BaseFont /Times-Bold\n/Subtype /Type1" ++ enc,
-            .Times_Italic => return "/BaseFont /Times-Italic\n/Subtype /Type1" ++ enc,
-            .Times_Bold_Italic => return "/BaseFont /Times-BoldItalic\n/Subtype /Type1" ++ enc,
-            .Helvetica => return "/BaseFont /Helvetica\n/Subtype /Type1" ++ enc,
-            .Helvetica_Bold => return "/BaseFont /Helvetica-Bold\n/Subtype /Type1" ++ enc,
-            .Helvetica_Oblique => return "/BaseFont /Helvetica-Oblique\n/Subtype /Type1" ++ enc,
-            .Helvetica_Bold_Oblique => return "/BaseFont /Helvetica-BoldOblique\n/Subtype /Type1" ++ enc,
-            .Courier => return "/BaseFont /Courier\n/Subtype /Type1" ++ enc,
-            .Courier_Bold => return "/BaseFont /Courier-Bold\n/Subtype /Type1" ++ enc,
-            .Courier_Olbique => return "/BaseFont /Courier-Oblique\n/Subtype /Type1" ++ enc,
-            .Courier_Bold_Oblique => return "/BaseFont /Courier-BoldOblique\n/Subtype /Type1" ++ enc,
-            .Symbol => return "/BaseFont /Symbol\n/Subtype /Type1",
-            .Zapf_Dingbats => return "/BaseFont /ZapfDingbats\n/Subtype /Type1",
-        }
+        return switch (self) {
+            .Times_Roman => "/BaseFont /Times-Roman\n/Subtype /Type1" ++ enc,
+            .Times_Bold => "/BaseFont /Times-Bold\n/Subtype /Type1" ++ enc,
+            .Times_Italic => "/BaseFont /Times-Italic\n/Subtype /Type1" ++ enc,
+            .Times_Bold_Italic => "/BaseFont /Times-BoldItalic\n/Subtype /Type1" ++ enc,
+            .Helvetica => "/BaseFont /Helvetica\n/Subtype /Type1" ++ enc,
+            .Helvetica_Bold => "/BaseFont /Helvetica-Bold\n/Subtype /Type1" ++ enc,
+            .Helvetica_Oblique => "/BaseFont /Helvetica-Oblique\n/Subtype /Type1" ++ enc,
+            .Helvetica_Bold_Oblique => "/BaseFont /Helvetica-BoldOblique\n/Subtype /Type1" ++ enc,
+            .Courier => "/BaseFont /Courier\n/Subtype /Type1" ++ enc,
+            .Courier_Bold => "/BaseFont /Courier-Bold\n/Subtype /Type1" ++ enc,
+            .Courier_Olbique => "/BaseFont /Courier-Oblique\n/Subtype /Type1" ++ enc,
+            .Courier_Bold_Oblique => "/BaseFont /Courier-BoldOblique\n/Subtype /Type1" ++ enc,
+            .Symbol => "/BaseFont /Symbol\n/Subtype /Type1",
+            .Zapf_Dingbats => "/BaseFont /ZapfDingbats\n/Subtype /Type1",
+        };
     }
 };
 

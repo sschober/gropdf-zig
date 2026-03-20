@@ -131,6 +131,14 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
             // when there is no standard equivalent for this groff font name.
             if (groff_to_pdf_font_map.get(grout_font_ref.name)) |pdf_std_font| {
                 doc_font_ref = try doc.addStandardFont(pdf_std_font);
+                // Override the encoding with the full charset from the groff font descriptor.
+                // The descriptor maps many special characters (bullet, quotes, dashes, …) to
+                // positions that differ from PDF's built-in StandardEncoding, so we must list
+                // them in /Differences to make the PDF viewer pick the right glyph.
+                if (groff.readFontEncodingDiffs(self.allocator, grout_font_ref.name)) |diffs| {
+                    defer self.allocator.free(diffs);
+                    try doc.setFontEncoding(doc_font_ref, pdf_std_font.psName(), diffs);
+                } else |_| {}  // if the descriptor is missing, keep the default encoding
             } else if (try groff.findAndLoadFont(self.allocator, grout_font_ref.name)) |font_data| {
                 log.dbg("{d}: embedding Type1 font {s} for groff font {s}\n", .{
                     self.cur_line_num, font_data.font_name, grout_font_ref.name,
