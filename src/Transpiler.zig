@@ -152,7 +152,8 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
                     .high_glyphs = groff.HighGlyphMap.init(self.allocator),
                 };
                 const enc_diffs = groff.fontEncodingToDiffs(self.allocator, font_maps.encoding) catch null;
-                doc_font_ref = try doc.addEmbeddedFont(font_data, enc_diffs);
+                const glyph_widths_for_embed = groff.readGlyphMap(self.allocator, grout_font_ref.name) catch null;
+                doc_font_ref = try doc.addEmbeddedFont(font_data, enc_diffs, glyph_widths_for_embed);
                 try self.used_chars.put(doc_font_ref.idx, .{false} ** 256);
                 try self.embedded_font_data.put(doc_font_ref.idx, font_data);
                 try self.font_encodings.put(doc_font_ref.idx, font_maps.encoding);

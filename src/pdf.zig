@@ -837,7 +837,7 @@ pub const Document = struct {
     /// Creates FontFileStream + FontDescriptor + Font objects and wires them together.
     /// encoding_diffs: optional PDF /Differences array string (e.g. "[164 /currency ...]")
     /// built from the font's charset; if null, falls back to the minimal default.
-    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData, encoding_diffs: ?[]const u8) !FontRef {
+    pub fn addEmbeddedFont(self: *Document, font_data: common.Type1FontData, encoding_diffs: ?[]const u8, glyph_widths: ?[257]usize) !FontRef {
         // 1. Font file stream (raw Type1 bytes)
         const ff_obj_num = self.objs.items.len + 1;
         const ff = try FontFileStream.init(self.allocator, ff_obj_num, font_data);
@@ -851,11 +851,14 @@ pub const Document = struct {
         // 3. Font dictionary — use the font's own encoding if available, otherwise
         // fall back to StandardEncoding with just endash/emdash differences.
         const diffs = encoding_diffs orelse "[150 /endash /emdash]";
-        const font_def = try std.fmt.allocPrint(
-            self.allocator,
-            "/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>",
-            .{ font_data.font_name, diffs },
-        );
+        var buf = std.array_list.Managed(u8).init(self.allocator);
+        try buf.writer().print("/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>", .{ font_data.font_name, diffs });
+        if (glyph_widths) |widths| {
+            try buf.appendSlice("\n/FirstChar 0\n/LastChar 255\n/Widths [");
+            for (widths[0..256]) |ww| try buf.writer().print("{d} ", .{ww});
+            try buf.append(']');
+        }
+        const font_def = try buf.toOwnedSlice();
         const font_obj_num = self.objs.items.len + 1;
         const fontNum = self.fonts.items.len;
         const font = try Font.init(self.allocator, font_obj_num, fontNum, font_def);
