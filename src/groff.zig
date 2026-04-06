@@ -596,6 +596,64 @@ fn glyphNameForByte(b: u8) ?[]const u8 {
     return differences_encoding[b] orelse standard_encoding[b];
 }
 
+/// Map an Adobe PostScript glyph name to its Unicode codepoint (u21 fits in u32).
+/// Only covers the Latin-1 Supplement range that appears in differences_encoding,
+/// since those are the glyphs modern fonts tend to rename to "uniXXXX".
+fn glyphNameToUnicode(name: []const u8) ?u21 {
+    // zig fmt: off
+    const table = [_]struct { name: []const u8, cp: u21 }{
+        .{ .name = "Agrave",      .cp = 0x00C0 }, .{ .name = "Aacute",      .cp = 0x00C1 },
+        .{ .name = "Acircumflex", .cp = 0x00C2 }, .{ .name = "Atilde",      .cp = 0x00C3 },
+        .{ .name = "Adieresis",   .cp = 0x00C4 }, .{ .name = "Aring",       .cp = 0x00C5 },
+        .{ .name = "AE",          .cp = 0x00C6 }, .{ .name = "Ccedilla",    .cp = 0x00C7 },
+        .{ .name = "Egrave",      .cp = 0x00C8 }, .{ .name = "Eacute",      .cp = 0x00C9 },
+        .{ .name = "Ecircumflex", .cp = 0x00CA }, .{ .name = "Edieresis",   .cp = 0x00CB },
+        .{ .name = "Igrave",      .cp = 0x00CC }, .{ .name = "Iacute",      .cp = 0x00CD },
+        .{ .name = "Icircumflex", .cp = 0x00CE }, .{ .name = "Idieresis",   .cp = 0x00CF },
+        .{ .name = "Eth",         .cp = 0x00D0 }, .{ .name = "Ntilde",      .cp = 0x00D1 },
+        .{ .name = "Ograve",      .cp = 0x00D2 }, .{ .name = "Oacute",      .cp = 0x00D3 },
+        .{ .name = "Ocircumflex", .cp = 0x00D4 }, .{ .name = "Otilde",      .cp = 0x00D5 },
+        .{ .name = "Odieresis",   .cp = 0x00D6 }, .{ .name = "multiply",    .cp = 0x00D7 },
+        .{ .name = "Oslash",      .cp = 0x00D8 }, .{ .name = "Ugrave",      .cp = 0x00D9 },
+        .{ .name = "Uacute",      .cp = 0x00DA }, .{ .name = "Ucircumflex", .cp = 0x00DB },
+        .{ .name = "Udieresis",   .cp = 0x00DC }, .{ .name = "Yacute",      .cp = 0x00DD },
+        .{ .name = "Thorn",       .cp = 0x00DE }, .{ .name = "germandbls",  .cp = 0x00DF },
+        .{ .name = "agrave",      .cp = 0x00E0 }, .{ .name = "aacute",      .cp = 0x00E1 },
+        .{ .name = "acircumflex", .cp = 0x00E2 }, .{ .name = "atilde",      .cp = 0x00E3 },
+        .{ .name = "adieresis",   .cp = 0x00E4 }, .{ .name = "aring",       .cp = 0x00E5 },
+        .{ .name = "ae",          .cp = 0x00E6 }, .{ .name = "ccedilla",    .cp = 0x00E7 },
+        .{ .name = "egrave",      .cp = 0x00E8 }, .{ .name = "eacute",      .cp = 0x00E9 },
+        .{ .name = "ecircumflex", .cp = 0x00EA }, .{ .name = "edieresis",   .cp = 0x00EB },
+        .{ .name = "igrave",      .cp = 0x00EC }, .{ .name = "iacute",      .cp = 0x00ED },
+        .{ .name = "icircumflex", .cp = 0x00EE }, .{ .name = "idieresis",   .cp = 0x00EF },
+        .{ .name = "eth",         .cp = 0x00F0 }, .{ .name = "ntilde",      .cp = 0x00F1 },
+        .{ .name = "ograve",      .cp = 0x00F2 }, .{ .name = "oacute",      .cp = 0x00F3 },
+        .{ .name = "ocircumflex", .cp = 0x00F4 }, .{ .name = "otilde",      .cp = 0x00F5 },
+        .{ .name = "odieresis",   .cp = 0x00F6 }, .{ .name = "divide",      .cp = 0x00F7 },
+        .{ .name = "oslash",      .cp = 0x00F8 }, .{ .name = "ugrave",      .cp = 0x00F9 },
+        .{ .name = "uacute",      .cp = 0x00FA }, .{ .name = "ucircumflex", .cp = 0x00FB },
+        .{ .name = "udieresis",   .cp = 0x00FC }, .{ .name = "yacute",      .cp = 0x00FD },
+        .{ .name = "thorn",       .cp = 0x00FE }, .{ .name = "ydieresis",   .cp = 0x00FF },
+        // Windows-1252 extras used by groff
+        .{ .name = "endash",      .cp = 0x2013 }, .{ .name = "emdash",      .cp = 0x2014 },
+    };
+    // zig fmt: on
+    for (table) |entry| {
+        if (std.mem.eql(u8, entry.name, name)) return entry.cp;
+    }
+    return null;
+}
+
+/// Format a Unicode codepoint as "uniXXXX" (BMP) or "uXXXXX" (supplementary).
+/// Writes into `buf` and returns the slice.  `buf` must be at least 10 bytes.
+fn formatUniName(cp: u21, buf: []u8) []u8 {
+    if (cp <= 0xFFFF) {
+        return std.fmt.bufPrint(buf, "uni{X:0>4}", .{cp}) catch unreachable;
+    } else {
+        return std.fmt.bufPrint(buf, "u{X:0>5}", .{cp}) catch unreachable;
+    }
+}
+
 /// Decrypt the eexec section of a Type1 font (binary form).
 /// Returns the full decrypted stream; the first 4 bytes are the random seed
 /// and should be discarded by the caller.
@@ -636,12 +694,42 @@ fn encryptEexec(gpa: Allocator, plaintext: []const u8) ![]u8 {
 /// [150 /endash /emdash] applied by addEmbeddedFont.  Always retains .notdef.
 pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [256]bool) !Type1FontData {
     // Build the set of needed glyph names.
+    // For each used byte we look up its standard Adobe glyph name AND add the
+    // "uniXXXX" / "uXXXXX" unicode variant as a fallback.  Modern fonts
+    // converted from OTF/TTF via fontforge (e.g. by mato-install-fonts.sh)
+    // often keep their original unicode glyph names (uni00E4 instead of
+    // adieresis) in the CharStrings dict, so without this fallback any
+    // umlaut or accented glyph would be silently dropped from the subset.
     var needed = std.StringHashMap(void).init(gpa);
     defer needed.deinit();
+    // Small arena for the "uniXXXX" strings we build — these live as long as
+    // `needed` does, so we free them all at once via a secondary list.
+    var uni_names = std.array_list.Managed([]u8).init(gpa);
+    defer {
+        for (uni_names.items) |s| gpa.free(s);
+        uni_names.deinit();
+    }
+    // unicode_to_standard: maps "uni00E4" → "adieresis" etc.
+    // Used when copying glyphs: if the font names a glyph "uni00E4", we rename
+    // it to "adieresis" in the subset so the PDF /Differences vector (which
+    // always uses standard names) resolves correctly in the PDF viewer.
+    var unicode_to_standard = std.StringHashMap([]const u8).init(gpa);
+    defer unicode_to_standard.deinit();
+
     try needed.put(".notdef", {});
     for (used_bytes, 0..) |used, b| {
-        if (used) {
-            if (glyphNameForByte(@intCast(b))) |name| try needed.put(name, {});
+        if (!used) continue;
+        if (glyphNameForByte(@intCast(b))) |name| {
+            try needed.put(name, {});
+            // Also add the uniXXXX equivalent so fonts with unicode glyph
+            // names (e.g. "uni00E4" instead of "adieresis") are handled.
+            if (glyphNameToUnicode(name)) |cp| {
+                var buf: [10]u8 = undefined;
+                const uni_name = try gpa.dupe(u8, formatUniName(cp, &buf));
+                try uni_names.append(uni_name);
+                try needed.put(uni_name, {});
+                try unicode_to_standard.put(uni_name, name);
+            }
         }
     }
 
@@ -733,7 +821,18 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [25
     try new_plain.appendSlice(plain[0..cs_line_start]);
     try new_plain.writer().print("/CharStrings {d} dict dup begin\n", .{kept});
     for (all_glyphs.items) |g| {
-        if (needed.contains(g.name)) try new_plain.appendSlice(g.bytes);
+        if (!needed.contains(g.name)) continue;
+        if (unicode_to_standard.get(g.name)) |std_name| {
+            // The font uses a unicode glyph name (e.g. "uni00E4") but our PDF
+            // /Differences vector uses the standard name ("adieresis").
+            // Rename the glyph in the subset so the PDF viewer can find it.
+            // g.bytes layout: /{name} {count} RD <binary> ND\n
+            // Offset of the part after the name: 1 (slash) + name.len
+            try new_plain.writer().print("/{s}", .{std_name});
+            try new_plain.appendSlice(g.bytes[1 + g.name.len ..]);
+        } else {
+            try new_plain.appendSlice(g.bytes);
+        }
     }
     try new_plain.appendSlice("end\n");
     try new_plain.appendSlice(plain[after_cs..]);
