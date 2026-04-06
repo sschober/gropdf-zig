@@ -420,11 +420,44 @@ const standard_encoding: [256]?[]const u8 = build: {
     break :build enc;
 };
 
-/// /Differences overrides applied by addEmbeddedFont: [150 /endash /emdash].
+/// Byte→glyph-name mapping for positions where groff's devpdf encoding differs
+/// from Adobe StandardEncoding.  Covers:
+///   • Windows-1252 positions 150/151 (en-dash / em-dash) used by groff
+///   • ISO-8859-1 Latin-1 Supplement (0x80–0xFF) for accented characters
+///     including all German umlauts (ä ö ü Ä Ö Ü ß) and other diacritics.
+///
+/// groff's devpdf device assigns byte indices to glyphs using ISO-8859-1
+/// compatible positions (as found in the devpdf font description files' charset
+/// section).  These positions are NOT in Adobe StandardEncoding, so without
+/// this table the subsetting step would silently drop every accented glyph.
 const differences_encoding: [256]?[]const u8 = build: {
     var d: [256]?[]const u8 = .{null} ** 256;
+    // Windows-1252 extras used by groff (override StandardEncoding 150/177)
     d[150] = "endash";
     d[151] = "emdash";
+    // ISO-8859-1 Latin-1 Supplement: 0xC0–0xFF
+    d[192] = "Agrave";       d[193] = "Aacute";       d[194] = "Acircumflex";
+    d[195] = "Atilde";       d[196] = "Adieresis";    d[197] = "Aring";
+    d[198] = "AE";           d[199] = "Ccedilla";     d[200] = "Egrave";
+    d[201] = "Eacute";       d[202] = "Ecircumflex";  d[203] = "Edieresis";
+    d[204] = "Igrave";       d[205] = "Iacute";       d[206] = "Icircumflex";
+    d[207] = "Idieresis";    d[208] = "Eth";          d[209] = "Ntilde";
+    d[210] = "Ograve";       d[211] = "Oacute";       d[212] = "Ocircumflex";
+    d[213] = "Otilde";       d[214] = "Odieresis";    d[215] = "multiply";
+    d[216] = "Oslash";       d[217] = "Ugrave";       d[218] = "Uacute";
+    d[219] = "Ucircumflex";  d[220] = "Udieresis";    d[221] = "Yacute";
+    d[222] = "Thorn";        d[223] = "germandbls";
+    d[224] = "agrave";       d[225] = "aacute";       d[226] = "acircumflex";
+    d[227] = "atilde";       d[228] = "adieresis";    d[229] = "aring";
+    d[230] = "ae";           d[231] = "ccedilla";     d[232] = "egrave";
+    d[233] = "eacute";       d[234] = "ecircumflex";  d[235] = "edieresis";
+    d[236] = "igrave";       d[237] = "iacute";       d[238] = "icircumflex";
+    d[239] = "idieresis";    d[240] = "eth";           d[241] = "ntilde";
+    d[242] = "ograve";       d[243] = "oacute";       d[244] = "ocircumflex";
+    d[245] = "otilde";       d[246] = "odieresis";    d[247] = "divide";
+    d[248] = "oslash";       d[249] = "ugrave";       d[250] = "uacute";
+    d[251] = "ucircumflex";  d[252] = "udieresis";    d[253] = "yacute";
+    d[254] = "thorn";        d[255] = "ydieresis";
     break :build d;
 };
 
