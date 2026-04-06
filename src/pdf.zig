@@ -74,7 +74,23 @@ pub const StandardFonts = enum {
         };
     }
     pub fn string(self: StandardFonts) String {
-        const enc = "\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [150 /endash /emdash] >>";
+        // All Type1 text fonts: StandardEncoding base + full Latin-1 /Differences
+        // so accented characters (umlauts etc.) render correctly.
+        // Keep in sync with differences_encoding in groff.zig.
+        const enc = "\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding" ++
+            " /Differences [150 /endash /emdash" ++
+            " 192 /Agrave /Aacute /Acircumflex /Atilde /Adieresis /Aring" ++
+            " /AE /Ccedilla /Egrave /Eacute /Ecircumflex /Edieresis" ++
+            " /Igrave /Iacute /Icircumflex /Idieresis /Eth /Ntilde" ++
+            " /Ograve /Oacute /Ocircumflex /Otilde /Odieresis /multiply" ++
+            " /Oslash /Ugrave /Uacute /Ucircumflex /Udieresis /Yacute" ++
+            " /Thorn /germandbls" ++
+            " /agrave /aacute /acircumflex /atilde /adieresis /aring" ++
+            " /ae /ccedilla /egrave /eacute /ecircumflex /edieresis" ++
+            " /igrave /iacute /icircumflex /idieresis /eth /ntilde" ++
+            " /ograve /oacute /ocircumflex /otilde /odieresis /divide" ++
+            " /oslash /ugrave /uacute /ucircumflex /udieresis /yacute" ++
+            " /thorn /ydieresis] >>";
         return switch (self) {
             .Times_Roman => "/BaseFont /Times-Roman\n/Subtype /Type1" ++ enc,
             .Times_Bold => "/BaseFont /Times-Bold\n/Subtype /Type1" ++ enc,
@@ -848,11 +864,29 @@ pub const Document = struct {
         const fd = try FontDescriptor.init(self.allocator, fd_obj_num, font_data, ff_obj_num);
         try self.addObj(try fd.pdfObj());
 
-        // 3. Font dictionary — use the font's own encoding if available, otherwise
-        // fall back to StandardEncoding with just endash/emdash differences.
-        const diffs = encoding_diffs orelse "[150 /endash /emdash]";
+        // 3. Font dictionary.  The /Encoding /Differences array maps every byte
+        // position where groff's devpdf encoding differs from Adobe StandardEncoding:
+        //   • 150 /endash, 151 /emdash  (Windows-1252 positions used by groff)
+        //   • 192–255  ISO-8859-1 Latin-1 Supplement (umlauts, accented letters …)
+        // Keep in sync with differences_encoding in groff.zig.
+        const latin1_differences =
+            "150 /endash /emdash" ++
+            " 192" ++
+            " /Agrave /Aacute /Acircumflex /Atilde /Adieresis /Aring" ++
+            " /AE /Ccedilla /Egrave /Eacute /Ecircumflex /Edieresis" ++
+            " /Igrave /Iacute /Icircumflex /Idieresis /Eth /Ntilde" ++
+            " /Ograve /Oacute /Ocircumflex /Otilde /Odieresis /multiply" ++
+            " /Oslash /Ugrave /Uacute /Ucircumflex /Udieresis /Yacute" ++
+            " /Thorn /germandbls" ++
+            " /agrave /aacute /acircumflex /atilde /adieresis /aring" ++
+            " /ae /ccedilla /egrave /eacute /ecircumflex /edieresis" ++
+            " /igrave /iacute /icircumflex /idieresis /eth /ntilde" ++
+            " /ograve /oacute /ocircumflex /otilde /odieresis /divide" ++
+            " /oslash /ugrave /uacute /ucircumflex /udieresis /yacute" ++
+            " /thorn /ydieresis";
+        const diffs = encoding_diffs orelse latin1_differences;
         var buf = std.array_list.Managed(u8).init(self.allocator);
-        try buf.writer().print("/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>", .{ font_data.font_name, diffs });
+        try buf.writer().print("/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [{s}] >>", .{ font_data.font_name, diffs });
         if (glyph_widths) |widths| {
             try buf.appendSlice("\n/FirstChar 0\n/LastChar 255\n/Widths [");
             for (widths[0..256]) |ww| try buf.writer().print("{d} ", .{ww});
