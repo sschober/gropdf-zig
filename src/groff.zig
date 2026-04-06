@@ -114,33 +114,88 @@ pub const RgbColor = struct {
 /// custom error for groff path problems
 const GroffPathError = error{FontNotFound} || Allocator.Error;
 
-/// try to locate given font under a given set of search candidate paths
+/// All directories that can contain groff devpdf font descriptor files,
+/// in priority order.  Includes both the versioned system install
+/// (`current/font/devpdf`) and the site-font directory used by
+/// mato-install-fonts.sh for user-installed fonts.
+const devpdf_search_dirs = [_]String{
+    "/usr/share/groff/current/font/devpdf",
+    "/usr/local/share/groff/current/font/devpdf",
+    "/opt/homebrew/share/groff/current/font/devpdf",
+    "/usr/local/share/groff/site-font/devpdf",
+    "/usr/share/groff/site-font/devpdf",
+};
+
+/// Locate a groff devpdf font descriptor file by font name.
+/// Searches both the system `current/font/devpdf` directory and the
+/// user `site-font/devpdf` directory (where mato-install-fonts.sh puts
+/// user-installed fonts such as GrenzeGothischR).
 pub fn locateFont(gpa: Allocator, font_name: String) GroffPathError!String {
-    const search_paths =
-        [_]String{
-            "/usr/share/groff/current", // standard unix and linux path
-            "/usr/local/share/groff/current", // standard source install unix and linux path
-            "/opt/homebrew/share/groff/current", // macos homebrew install path
-        };
-    var search_path: String = "";
-    for (search_paths) |path| {
-        const stat = std.fs.cwd().statFile(path) catch {
+    for (devpdf_search_dirs) |dir| {
+        const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ dir, font_name });
+        std.fs.accessAbsolute(path, .{}) catch {
+            gpa.free(path);
             continue;
         };
-        switch (stat.kind) {
-            .directory => {
-                log.dbg("groff: found {s}\n", .{path});
-                search_path = path;
-                break;
-            },
-            else => {},
-        }
-    }
-    if (search_path.len > 0) {
-        // TODO look if font is really there, not only dir
-        return std.fmt.allocPrint(gpa, "{s}/font/devpdf/{s}", .{ search_path, font_name });
+        log.dbg("groff: located font descriptor {s}\n", .{path});
+        return path;
     }
     return GroffPathError.FontNotFound;
+}
+
+/// Read a single named header field from a groff font descriptor file.
+/// Returns a freshly allocated copy of the value, or null if not found.
+/// Stops reading at the "charset" line.
+fn readFontDescriptorField(gpa: Allocator, desc_path: String, field: String) !?String {
+    var f = std.fs.openFileAbsolute(desc_path, .{}) catch return null;
+    defer f.close();
+    var buf: [4096]u8 = undefined;
+    var reader = f.reader(&buf);
+    const prefix = try std.fmt.allocPrint(gpa, "{s} ", .{field});
+    defer gpa.free(prefix);
+    while (try reader.interface.takeDelimiter('\n')) |line| {
+        if (std.mem.eql(u8, line, "charset")) break;
+        if (std.mem.startsWith(u8, line, prefix)) {
+            return try gpa.dupe(u8, line[prefix.len..]);
+        }
+    }
+    return null;
+}
+
+/// Parse a groff `download` file and return the filesystem path for the
+/// given PostScript font name, or null if not found.
+/// The download file format is:   <ps-name>\t<path>   (lines starting with
+/// '#' are comments).
+fn findInDownloadFile(gpa: Allocator, download_path: String, ps_name: String) !?String {
+    var f = std.fs.openFileAbsolute(download_path, .{}) catch return null;
+    defer f.close();
+    var buf: [4096]u8 = undefined;
+    var reader = f.reader(&buf);
+    while (try reader.interface.takeDelimiter('\n')) |line| {
+        if (line.len == 0 or line[0] == '#') continue;
+        var it = std.mem.splitScalar(u8, line, '\t');
+        const name = it.next() orelse continue;
+        const path = it.next() orelse continue;
+        if (std.mem.eql(u8, std.mem.trimRight(u8, name, " "), ps_name)) {
+            return try gpa.dupe(u8, std.mem.trim(u8, path, " \r"));
+        }
+    }
+    return null;
+}
+
+/// Find the font file (.pfa or .pfb) for a groff font by consulting the
+/// `download` file in each devpdf search directory.  Returns a freshly
+/// allocated path string, or null if not found.
+fn findFontViaDownload(gpa: Allocator, ps_name: String) !?String {
+    for (devpdf_search_dirs) |dir| {
+        const dl_path = try std.fmt.allocPrint(gpa, "{s}/download", .{dir});
+        defer gpa.free(dl_path);
+        if (try findInDownloadFile(gpa, dl_path, ps_name)) |font_path| {
+            log.dbg("groff: found font {s} at {s}\n", .{ ps_name, font_path });
+            return font_path;
+        }
+    }
+    return null;
 }
 /// reads the groff font descriptor file as defined in `groff_font(5)`. parses
 /// the charset section of that file to extract the width of each glyph. uses
@@ -266,10 +321,86 @@ fn buildFontSearchDirs(gpa: Allocator) !std.array_list.Managed(String) {
     return dirs;
 }
 
-/// Parse a Type1 PFA font file (binary or hex eexec) into a `Type1FontData`.
-/// Determines Length1/Length2/Length3 split and extracts font metadata from
-/// the clear-text header.
-fn parseType1FontData(gpa: Allocator, data: []const u8) !Type1FontData {
+/// Decode a PFA hex-encoded eexec section into raw binary bytes.
+/// PFA fonts encode their eexec section as ASCII hex pairs (with optional
+/// whitespace / line breaks); this function strips whitespace and decodes.
+fn decodePfaHex(gpa: Allocator, hex_data: []const u8) ![]u8 {
+    // Count non-whitespace chars to size the output.
+    var hex_count: usize = 0;
+    for (hex_data) |c| if (!std.ascii.isWhitespace(c)) { hex_count += 1; };
+    const out = try gpa.alloc(u8, hex_count / 2);
+    var out_i: usize = 0;
+    var nibble_buf: [2]u8 = undefined;
+    var nibble_count: usize = 0;
+    for (hex_data) |c| {
+        if (std.ascii.isWhitespace(c)) continue;
+        nibble_buf[nibble_count] = c;
+        nibble_count += 1;
+        if (nibble_count == 2) {
+            out[out_i] = try std.fmt.parseInt(u8, &nibble_buf, 16);
+            out_i += 1;
+            nibble_count = 0;
+        }
+    }
+    return out[0..out_i];
+}
+
+/// Parse a Type1 font file — either PFB (binary) or PFA (ASCII/hex eexec) —
+/// into a `Type1FontData`.  Determines Length1/Length2/Length3 split and
+/// extracts font metadata from the clear-text header.
+///
+/// PFB vs PFA detection: PFA files start with "%!" and have a hex-encoded
+/// eexec section; PFB files start with the 0x80 segment marker byte.
+/// For PFA we decode the hex eexec into binary so that the rest of the
+/// pipeline (decryptEexec, subsetType1Font) can treat both formats uniformly.
+fn parseType1FontData(gpa: Allocator, raw_data: []const u8) !Type1FontData {
+    // ── Detect PFA vs PFB and normalise to binary eexec ──────────────────────
+    const is_pfa = raw_data.len >= 2 and raw_data[0] == '%' and raw_data[1] == '!';
+    // For PFA, we will rebuild `data` with a binary eexec section so that
+    // everything below works identically for both formats.
+    const data: []const u8 = blk: {
+        if (!is_pfa) break :blk raw_data; // PFB: use as-is
+
+        // Find the eexec marker and the start of the hex content.
+        const eexec_marker = "currentfile eexec";
+        const eexec_idx = std.mem.indexOf(u8, raw_data, eexec_marker) orelse
+            return error.InvalidType1Font;
+        var hex_start = eexec_idx + eexec_marker.len;
+        if (hex_start < raw_data.len and raw_data[hex_start] == '\r') hex_start += 1;
+        if (hex_start < raw_data.len and raw_data[hex_start] == '\n') hex_start += 1;
+
+        // Find the end of the hex section (cleartomark trailer).
+        const cm_marker = "cleartomark";
+        const cm_idx = std.mem.lastIndexOf(u8, raw_data, cm_marker) orelse
+            return error.InvalidType1Font;
+        // Walk back over zero-padding lines.
+        var trailer_start = cm_idx;
+        var j = cm_idx;
+        while (j > hex_start) {
+            j -= 1;
+            const c = raw_data[j];
+            if (c == '0' or c == '\n' or c == '\r') trailer_start = j
+            else break;
+        }
+
+        const hex_section = raw_data[hex_start..trailer_start];
+        const binary_eexec = try decodePfaHex(gpa, hex_section);
+        defer gpa.free(binary_eexec);
+
+        // Reconstruct: clear-text header || binary eexec || trailer
+        const header = raw_data[0..hex_start];
+        const trailer = raw_data[trailer_start..];
+        const rebuilt = try gpa.alloc(u8, header.len + binary_eexec.len + trailer.len);
+        @memcpy(rebuilt[0..header.len], header);
+        @memcpy(rebuilt[header.len..header.len + binary_eexec.len], binary_eexec);
+        @memcpy(rebuilt[header.len + binary_eexec.len..], trailer);
+        break :blk rebuilt;
+        // raw_data is still live; the caller must free it (see findAndLoadFont).
+    };
+    // For PFB: data.ptr == raw_data.ptr (same allocation, caller owns it).
+    // For PFA: data.ptr != raw_data.ptr (rebuilt is a new allocation; the
+    //           caller must detect this and free raw_data separately).
+
     // ── Length1: clear-text up to and including the separator after "currentfile eexec" ──
     // Fonts use \r, \n, or \r\n as the separator. We must NOT search for \n
     // generically because the binary encrypted data can contain \n bytes.
@@ -632,25 +763,75 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, used_bytes: [25
 
 /// Try to find, read, and parse a Type1 font for the given groff font name.
 /// Returns `null` if no font file is found in the search paths.
+/// Load a Type1 font for a given groff font name.
+///
+/// Strategy:
+/// 1. For the 14 built-in Nimbus/Ghostscript fonts: try the hardcoded
+///    candidate file names in the Ghostscript font directories (fast path).
+/// 2. For user-installed fonts (e.g. GrenzeGothischR from mato-install-fonts.sh):
+///    a. Locate the groff font descriptor file (also searches site-font/devpdf).
+///    b. Read the `internalname` field (PostScript font name).
+///    c. Look up that name in the `download` files in each devpdf directory.
+///    d. Load and parse the resulting .pfa or .pfb file.
 pub fn findAndLoadFont(gpa: Allocator, groff_name: String) !?Type1FontData {
+    // ── Fast path: hardcoded Nimbus candidates ────────────────────────────────
     const candidates = getFontFileCandidates(groff_name);
-    if (candidates.len == 0) return null;
-
-    const search_dirs = try buildFontSearchDirs(gpa);
-
-    for (search_dirs.items) |dir| {
-        for (candidates) |name| {
-            const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ dir, name });
-            const data = std.fs.cwd().readFileAlloc(gpa, path, 20 * 1024 * 1024) catch {
-                gpa.free(path);
-                continue;
-            };
-            gpa.free(path);
-            return parseType1FontData(gpa, data) catch |err| {
-                log.warn("warning: could not parse Type1 font {s}: {}\n", .{ name, err });
-                continue;
-            };
+    if (candidates.len > 0) {
+        const search_dirs = try buildFontSearchDirs(gpa);
+        defer {
+            for (search_dirs.items) |d| gpa.free(d);
+            search_dirs.deinit();
         }
+        for (search_dirs.items) |dir| {
+            for (candidates) |name| {
+                const path = try std.fmt.allocPrint(gpa, "{s}/{s}", .{ dir, name });
+                const raw = std.fs.cwd().readFileAlloc(gpa, path, 20 * 1024 * 1024) catch {
+                    gpa.free(path);
+                    continue;
+                };
+                gpa.free(path);
+                const font_data = parseType1FontData(gpa, raw) catch |err| {
+                    log.warn("warning: could not parse Type1 font {s}: {}\n", .{ name, err });
+                    gpa.free(raw);
+                    continue;
+                };
+                // For PFA, parseType1FontData rebuilt the buffer; free the original.
+                if (font_data.data.ptr != raw.ptr) gpa.free(raw);
+                return font_data;
+            }
+        }
+        return null;
     }
-    return null;
+
+    // ── Download-file path: user-installed fonts ──────────────────────────────
+    // Find the groff font descriptor to get the PostScript internal name.
+    const desc_path = locateFont(gpa, groff_name) catch return null;
+    defer gpa.free(desc_path);
+
+    const ps_name = try readFontDescriptorField(gpa, desc_path, "internalname") orelse {
+        log.warn("warning: no internalname in font descriptor for {s}\n", .{groff_name});
+        return null;
+    };
+    defer gpa.free(ps_name);
+    log.dbg("groff: font {s} has PS name {s}\n", .{ groff_name, ps_name });
+
+    // Search devpdf download files for the actual font file.
+    const font_path = try findFontViaDownload(gpa, ps_name) orelse {
+        log.warn("warning: font {s} ({s}) not found in any download file\n", .{ groff_name, ps_name });
+        return null;
+    };
+    defer gpa.free(font_path);
+
+    const raw = std.fs.cwd().readFileAlloc(gpa, font_path, 20 * 1024 * 1024) catch |err| {
+        log.warn("warning: could not read font file {s}: {}\n", .{ font_path, err });
+        return null;
+    };
+    const font_data = parseType1FontData(gpa, raw) catch |err| {
+        log.warn("warning: could not parse font file {s}: {}\n", .{ font_path, err });
+        gpa.free(raw);
+        return null;
+    };
+    // For PFA, parseType1FontData rebuilt the buffer; free the original.
+    if (font_data.data.ptr != raw.ptr) gpa.free(raw);
+    return font_data;
 }
