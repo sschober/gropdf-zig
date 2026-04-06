@@ -1,0 +1,228 @@
+.\" Font alphabet test for mato-install-fonts.sh fonts
+.\" Tests: Alegreya, Grenze Gothisch, Minion Pro, Iosevka Curly Slab
+.\"
+.\" Build:
+.\"   groff -Tpdf -k -mom samples/font-test.mom > font-test.pdf
+.\"     (-k enables preconv for UTF-8 input; -mom selects the mom macro package)
+.\"
+.\" Or via gropdf-zig:
+.\"   groff -Tpdf -k -Z -mom samples/font-test.mom > samples/font-test.grout
+.\"   zig-out/bin/gropdf_zig < samples/font-test.grout > font-test.pdf
+.\"
+.DOCTYPE DEFAULT
+.TITLE "Font Alphabet Test"
+.SUBTITLE "mato-install-fonts.sh"
+.AUTHOR "gropdf-zig"
+.PRINTSTYLE TYPESET
+.PAPER A4
+.L_MARGIN 20mm
+.R_MARGIN 20mm
+.PT_SIZE 11
+.START
+
+.HEADING 1 "Font Alphabet Test"
+.PP
+This document tests all fonts installed by
+.I mato-install-fonts.sh
+including umlauts and full Latin-1 supplement characters.
+Each font family is shown in all available variants (Regular, Italic, Bold,
+Bold Italic).
+
+.\" ══════════════════════════════════════════════════════════════════════════
+.HEADING 2 "Alegreya"
+.\" ══════════════════════════════════════════════════════════════════════════
+
+.HEADING 3 "Regular (AlegreyaR)"
+.FAMILY Alegreya
+.FONT R
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+0 1 2 3 4 5 6 7 8 9
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Acircumflex] \[Atilde] \[Aring] \[AElig] \[Ccedilla]
+\[Egrave] \[Eacute] \[Ecircumflex] \[Edieresis]
+\[Igrave] \[Iacute] \[Icircumflex] \[Idieresis]
+\[ETH] \[Ntilde] \[Ograve] \[Oacute] \[Ocircumflex] \[Otilde] \[Oslash]
+\[Ugrave] \[Uacute] \[Ucircumflex] \[Yacute] \[THORN]
+\[agrave] \[aacute] \[acircumflex] \[atilde] \[aring] \[aelig] \[ccedilla]
+\[egrave] \[eacute] \[ecircumflex] \[edieresis]
+\[igrave] \[iacute] \[icircumflex] \[idieresis]
+\[eth] \[ntilde] \[ograve] \[oacute] \[ocircumflex] \[otilde] \[oslash]
+\[ugrave] \[uacute] \[ucircumflex] \[yacute] \[thorn] \[ydieresis]
+.fi
+
+.HEADING 3 "Italic (AlegreyaI)"
+.FAMILY Alegreya
+.FONT I
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold (AlegreyaB)"
+.FAMILY Alegreya
+.FONT B
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold Italic (AlegreyaBI)"
+.FAMILY Alegreya
+.FONT BI
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.\" Reset to default font before next section
+.FAMILY T
+.FONT R
+
+.\" ══════════════════════════════════════════════════════════════════════════
+.HEADING 2 "Grenze Gothisch"
+.\" ══════════════════════════════════════════════════════════════════════════
+
+.HEADING 3 "Regular (GrenzeGothischR)"
+.FAMILY GrenzeGothisch
+.FONT R
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+0 1 2 3 4 5 6 7 8 9
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Acircumflex] \[Atilde] \[Aring] \[AElig] \[Ccedilla]
+\[Egrave] \[Eacute] \[Ecircumflex] \[Edieresis]
+\[Igrave] \[Iacute] \[Icircumflex] \[Idieresis]
+\[ETH] \[Ntilde] \[Ograve] \[Oacute] \[Ocircumflex] \[Otilde] \[Oslash]
+\[Ugrave] \[Uacute] \[Ucircumflex] \[Yacute] \[THORN]
+\[agrave] \[aacute] \[acircumflex] \[atilde] \[aring] \[aelig] \[ccedilla]
+\[egrave] \[eacute] \[ecircumflex] \[edieresis]
+\[igrave] \[iacute] \[icircumflex] \[idieresis]
+\[eth] \[ntilde] \[ograve] \[oacute] \[ocircumflex] \[otilde] \[oslash]
+\[ugrave] \[uacute] \[ucircumflex] \[yacute] \[thorn] \[ydieresis]
+.fi
+
+.FAMILY T
+.FONT R
+
+.\" ══════════════════════════════════════════════════════════════════════════
+.HEADING 2 "Minion Pro"
+.\" ══════════════════════════════════════════════════════════════════════════
+
+.HEADING 3 "Regular (MinionR)"
+.FAMILY Minion
+.FONT R
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+0 1 2 3 4 5 6 7 8 9
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Acircumflex] \[Atilde] \[Aring] \[AElig] \[Ccedilla]
+\[Egrave] \[Eacute] \[Ecircumflex] \[Edieresis]
+\[Igrave] \[Iacute] \[Icircumflex] \[Idieresis]
+\[ETH] \[Ntilde] \[Ograve] \[Oacute] \[Ocircumflex] \[Otilde] \[Oslash]
+\[Ugrave] \[Uacute] \[Ucircumflex] \[Yacute] \[THORN]
+\[agrave] \[aacute] \[acircumflex] \[atilde] \[aring] \[aelig] \[ccedilla]
+\[egrave] \[eacute] \[ecircumflex] \[edieresis]
+\[igrave] \[iacute] \[icircumflex] \[idieresis]
+\[eth] \[ntilde] \[ograve] \[oacute] \[ocircumflex] \[otilde] \[oslash]
+\[ugrave] \[uacute] \[ucircumflex] \[yacute] \[thorn] \[ydieresis]
+.fi
+
+.HEADING 3 "Italic (MinionI)"
+.FAMILY Minion
+.FONT I
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold (MinionB)"
+.FAMILY Minion
+.FONT B
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold Italic (MinionBI)"
+.FAMILY Minion
+.FONT BI
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.FAMILY T
+.FONT R
+
+.\" ══════════════════════════════════════════════════════════════════════════
+.HEADING 2 "Iosevka Curly Slab (Monospace)"
+.\" ══════════════════════════════════════════════════════════════════════════
+
+.HEADING 3 "Regular (IosevkaCurlySlabR)"
+.FAMILY IosevkaCurlySlab
+.FONT R
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+0 1 2 3 4 5 6 7 8 9
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Acircumflex] \[Atilde] \[Aring] \[AElig] \[Ccedilla]
+\[Egrave] \[Eacute] \[Ecircumflex] \[Edieresis]
+\[Igrave] \[Iacute] \[Icircumflex] \[Idieresis]
+\[ETH] \[Ntilde] \[Ograve] \[Oacute] \[Ocircumflex] \[Otilde] \[Oslash]
+\[Ugrave] \[Uacute] \[Ucircumflex] \[Yacute] \[THORN]
+\[agrave] \[aacute] \[acircumflex] \[atilde] \[aring] \[aelig] \[ccedilla]
+\[egrave] \[eacute] \[ecircumflex] \[edieresis]
+\[igrave] \[iacute] \[icircumflex] \[idieresis]
+\[eth] \[ntilde] \[ograve] \[oacute] \[ocircumflex] \[otilde] \[oslash]
+\[ugrave] \[uacute] \[ucircumflex] \[yacute] \[thorn] \[ydieresis]
+.fi
+
+.HEADING 3 "Italic (IosevkaCurlySlabI)"
+.FAMILY IosevkaCurlySlab
+.FONT I
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold (IosevkaCurlySlabB)"
+.FAMILY IosevkaCurlySlab
+.FONT B
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.HEADING 3 "Bold Italic (IosevkaCurlySlabBI)"
+.FAMILY IosevkaCurlySlab
+.FONT BI
+.nf
+A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+a b c d e f g h i j k l m n o p q r s t u v w x y z
+\[Adieresis] \[Odieresis] \[Udieresis] \[adieresis] \[odieresis] \[udieresis] \[ss]
+\[Agrave] \[Aacute] \[Egrave] \[Eacute] \[Ecircumflex] \[Ntilde] \[Ccedilla]
+.fi
+
+.FAMILY T
+.FONT R
