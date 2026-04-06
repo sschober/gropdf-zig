@@ -799,6 +799,44 @@ pub fn glyphNameForByte(b: u8) ?[]const u8 {
     return differences_encoding[b] orelse standard_encoding[b];
 }
 
+/// Map a Unicode codepoint to its Adobe PostScript glyph name.
+/// Covers the Latin-1 Supplement and Windows-1252 extras used by groff.
+fn unicodeToGlyphName(cp: u21) ?[]const u8 {
+    // Use differences_encoding and standard_encoding as the source of truth:
+    // iterate over all byte positions and find a match.
+    for (differences_encoding, 0..) |entry, b| {
+        _ = b;
+        _ = entry;
+    }
+    // Direct lookup via the encoding tables (byte value == codepoint for Latin-1).
+    if (cp <= 255) {
+        const b: u8 = @intCast(cp);
+        return differences_encoding[b] orelse standard_encoding[b];
+    }
+    // Supplementary: only endash/emdash are relevant here.
+    if (cp == 0x2013) return "endash";
+    if (cp == 0x2014) return "emdash";
+    return null;
+}
+
+/// If `name` is a "uniXXXX" or "uXXXXX" unicode glyph name, return the
+/// corresponding standard Adobe PostScript glyph name, or null.
+/// This handles fonts generated from OTF/TTF via fontforge that retain
+/// unicode names like "uni00E4" instead of "adieresis".
+fn resolveUniGlyphName(name: []const u8) ?[]const u8 {
+    // "uni" prefix: exactly 4 hex digits → BMP codepoint
+    if (std.mem.startsWith(u8, name, "uni") and name.len == 7) {
+        const cp = std.fmt.parseInt(u21, name[3..], 16) catch return null;
+        return unicodeToGlyphName(cp);
+    }
+    // "u" prefix: 5 hex digits → supplementary
+    if (std.mem.startsWith(u8, name, "u") and name.len == 6) {
+        const cp = std.fmt.parseInt(u21, name[1..], 16) catch return null;
+        return unicodeToGlyphName(cp);
+    }
+    return null;
+}
+
 /// Decode a PFA hex-encoded eexec section to binary.
 /// PFA fonts encode the encrypted bytes as ASCII hex pairs, possibly split
 /// across lines with whitespace.  Returns allocated binary slice.
@@ -1335,16 +1373,30 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
     }
 
     // ---- Build new CharStrings section ----
+    // A glyph is kept if its name is directly in `needed`, OR if it uses a
+    // unicode name (e.g. "uni00E4") that resolves to a standard name in `needed`
+    // (e.g. "adieresis").  The latter handles fonts generated from OTF/TTF via
+    // fontforge that retain unicode glyph names instead of standard PS names.
     var kept_glyphs: usize = 0;
-    for (all_glyphs.items) |g| if (needed.contains(g.name)) {
-        kept_glyphs += 1;
-    };
+    for (all_glyphs.items) |g| {
+        if (needed.contains(g.name)) {
+            kept_glyphs += 1;
+        } else if (resolveUniGlyphName(g.name)) |std_name| {
+            if (needed.contains(std_name)) kept_glyphs += 1;
+        }
+    }
 
     var new_cs_buf = std.array_list.Managed(u8).init(gpa);
     defer new_cs_buf.deinit();
     try new_cs_buf.writer().print("/CharStrings {d} dict dup begin\n", .{kept_glyphs});
     for (all_glyphs.items) |g| {
-        if (!needed.contains(g.name)) continue;
+        // Determine the output name: use standard name if this is a unicode-named glyph.
+        const out_name: []const u8 = if (needed.contains(g.name))
+            g.name
+        else if (resolveUniGlyphName(g.name)) |std_name|
+            if (needed.contains(std_name)) std_name else continue
+        else
+            continue;
         const enc_out = if (rewrite_cs) blk: {
             const plain_cs = try decryptCharstring(gpa, g.encrypted, len_iv);
             defer gpa.free(plain_cs);
@@ -1353,7 +1405,7 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
             break :blk try encryptCharstring(gpa, rewritten, len_iv);
         } else try gpa.dupe(u8, g.encrypted);
         defer gpa.free(enc_out);
-        try new_cs_buf.writer().print("/{s} {d} {s} ", .{ g.name, enc_out.len, rd_op });
+        try new_cs_buf.writer().print("/{s} {d} {s} ", .{ out_name, enc_out.len, rd_op });
         try new_cs_buf.appendSlice(enc_out);
         try new_cs_buf.writer().print("{s}\n", .{nd_op});
     }
