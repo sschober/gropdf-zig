@@ -6,4 +6,4 @@ dev-out.pdf
 dev-orig.pdf
 termpdf.log
 sample/
-samples/202*
+samples/202*tests/__pycache__/
