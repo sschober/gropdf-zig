@@ -869,8 +869,11 @@ pub const Document = struct {
         //   • 150 /endash, 151 /emdash  (Windows-1252 positions used by groff)
         //   • 192–255  ISO-8859-1 Latin-1 Supplement (umlauts, accented letters …)
         // Keep in sync with differences_encoding in groff.zig.
+        // latin1_differences includes the surrounding [ ] brackets so it is
+        // directly substituted into the /Differences slot, matching the format
+        // produced by fontEncodingToDiffs (which also wraps its output in brackets).
         const latin1_differences =
-            "150 /endash /emdash" ++
+            "[150 /endash /emdash" ++
             " 192" ++
             " /Agrave /Aacute /Acircumflex /Atilde /Adieresis /Aring" ++
             " /AE /Ccedilla /Egrave /Eacute /Ecircumflex /Edieresis" ++
@@ -883,10 +886,10 @@ pub const Document = struct {
             " /igrave /iacute /icircumflex /idieresis /eth /ntilde" ++
             " /ograve /oacute /ocircumflex /otilde /odieresis /divide" ++
             " /oslash /ugrave /uacute /ucircumflex /udieresis /yacute" ++
-            " /thorn /ydieresis";
+            " /thorn /ydieresis]";
         const diffs = encoding_diffs orelse latin1_differences;
         var buf = std.array_list.Managed(u8).init(self.allocator);
-        try buf.writer().print("/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences [{s}] >>", .{ font_data.font_name, diffs });
+        try buf.writer().print("/BaseFont /{s}\n/Subtype /Type1\n/Encoding << /Type /Encoding /BaseEncoding /StandardEncoding /Differences {s} >>", .{ font_data.font_name, diffs });
         if (glyph_widths) |widths| {
             try buf.appendSlice("\n/FirstChar 0\n/LastChar 255\n/Widths [");
             for (widths[0..256]) |ww| try buf.writer().print("{d} ", .{ww});

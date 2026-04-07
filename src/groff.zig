@@ -1176,7 +1176,14 @@ fn rewriteCallsubr(
 /// and any overflow re-encodings) that share this font's font file stream.
 /// Always retains .notdef even if not in `needed_names`.
 pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: std.StringHashMap(void)) !Type1FontData {
-    var needed = needed_names;
+    // Create a mutable owned copy so seac expansion can insert without
+    // disturbing the caller's map (inserting can reallocate the backing store).
+    var needed = std.StringHashMap(void).init(gpa);
+    defer needed.deinit();
+    {
+        var it = needed_names.keyIterator();
+        while (it.next()) |k| try needed.put(k.*, {});
+    }
 
     // Decrypt eexec section and skip the 4-byte random seed.
     const encrypted = font_data.data[font_data.length1 .. font_data.length1 + font_data.length2];
@@ -1315,6 +1322,71 @@ pub fn subsetType1Font(gpa: Allocator, font_data: Type1FontData, needed_names: s
         after_cs += 3;
         while (after_cs < plain.len and (plain[after_cs] == '\n' or plain[after_cs] == '\r'))
             after_cs += 1;
+    }
+
+    // ---- Expand needed_names to include seac component glyphs ----
+    // seac (12 6) and old-seac (byte 15) composite glyphs reference two
+    // component glyphs by their Adobe Standard Encoding positions.  Those
+    // components must be present in the subset or the composite cannot be
+    // rendered.  We scan every needed charstring for seac and add the
+    // bchar/achar glyphs to `needed` so that (a) they are included in the
+    // output CharStrings and (b) their Subr dependencies are traced below.
+    {
+        // Use a separate list so we can insert while iterating.
+        var extra_names = std.array_list.Managed([]const u8).init(gpa);
+        defer extra_names.deinit();
+
+        for (all_glyphs.items) |g| {
+            if (!needed.contains(g.name)) continue;
+            const plain_cs = try decryptCharstring(gpa, g.encrypted, len_iv);
+            defer gpa.free(plain_cs);
+
+            // Walk the charstring tracking the integer stack.
+            var stack: [32]i32 = undefined;
+            var sp: usize = 0;
+            var ci: usize = 0;
+            while (ci < plain_cs.len) {
+                const b = plain_cs[ci];
+                if (b >= 32) {
+                    const r = parseType1Int(plain_cs, ci);
+                    if (sp < stack.len) stack[sp] = r.val;
+                    sp += 1;
+                    ci += r.size;
+                } else if (b == 12 and ci + 1 < plain_cs.len) {
+                    if (plain_cs[ci + 1] == 6) {
+                        // seac escape: asb adx ady bchar achar (12) (6)
+                        if (sp >= 2) {
+                            const achar = stack[sp - 1];
+                            const bchar = stack[sp - 2];
+                            if (achar >= 0 and achar <= 255)
+                                if (standard_encoding[@intCast(achar)]) |n| try extra_names.append(n);
+                            if (bchar >= 0 and bchar <= 255)
+                                if (standard_encoding[@intCast(bchar)]) |n| try extra_names.append(n);
+                        }
+                        ci += 2;
+                    } else {
+                        ci += 2; // other escape: skip 2 bytes
+                    }
+                    sp = 0;
+                } else if (b == 15) {
+                    // old-style seac: asb adx ady bchar achar (15)
+                    if (sp >= 2) {
+                        const achar = stack[sp - 1];
+                        const bchar = stack[sp - 2];
+                        if (achar >= 0 and achar <= 255)
+                            if (standard_encoding[@intCast(achar)]) |n| try extra_names.append(n);
+                        if (bchar >= 0 and bchar <= 255)
+                            if (standard_encoding[@intCast(bchar)]) |n| try extra_names.append(n);
+                    }
+                    ci += 1;
+                    sp = 0;
+                } else {
+                    sp = 0;
+                    ci += 1;
+                }
+            }
+        }
+        for (extra_names.items) |name| try needed.put(name, {});
     }
 
     // ---- Trace Subr dependencies from needed CharStrings ----

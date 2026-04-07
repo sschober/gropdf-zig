@@ -151,7 +151,16 @@ fn handle_x_font(self: *Self, it: *std.mem.SplitIterator(u8, .scalar)) !void {
                     .name_map = groff.GlyphNameMap.init(self.allocator),
                     .high_glyphs = groff.HighGlyphMap.init(self.allocator),
                 };
-                const enc_diffs = groff.fontEncodingToDiffs(self.allocator, font_maps.encoding) catch null;
+                // Only pass enc_diffs when the encoding is non-empty; an all-null
+                // encoding (buildFontMaps fallback) produces "[]" which would
+                // suppress the latin1_differences fallback in addEmbeddedFont.
+                const has_encoding = for (font_maps.encoding) |e| {
+                    if (e != null) break true;
+                } else false;
+                const enc_diffs = if (has_encoding)
+                    groff.fontEncodingToDiffs(self.allocator, font_maps.encoding) catch null
+                else
+                    null;
                 const glyph_widths_for_embed = groff.readGlyphMap(self.allocator, grout_font_ref.name) catch null;
                 doc_font_ref = try doc.addEmbeddedFont(font_data, enc_diffs, glyph_widths_for_embed);
                 try self.used_chars.put(doc_font_ref.idx, .{false} ** 256);
